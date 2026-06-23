@@ -1,0 +1,90 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // 1. Staff Members Validation
+    function isValidStaffMember(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.fullName is string && data.fullName.size() <= 256
+        && data.email is string && data.email.size() <= 256
+        && data.role is string && data.role.size() <= 64
+        && data.status is string && (data.status == 'Active' || data.status == 'Suspended')
+        && data.joinedDate is string && data.joinedDate.size() <= 128;
+    }
+
+    match /staff_members/{staffId} {
+      allow read: if true;
+      allow create: if isValidId(staffId) && isValidStaffMember(incoming());
+      allow update: if isValidId(staffId) && isValidStaffMember(incoming());
+      allow delete: if isValidId(staffId);
+    }
+
+    // 2. Call Records Validation
+    function isValidCallRecord(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.clientName is string && data.clientName.size() <= 256
+        && data.clientNumber is string && data.clientNumber.size() <= 64
+        && data.callStatus is string && data.callStatus.size() <= 64
+        && data.loggedBy is string && data.loggedBy.size() <= 256
+        && data.createdDate is string && data.createdDate.size() <= 128;
+    }
+
+    match /call_records/{callId} {
+      allow read: if true;
+      allow create: if isValidId(callId) && isValidCallRecord(incoming());
+      allow update: if isValidId(callId) && isValidCallRecord(incoming());
+      allow delete: if isValidId(callId);
+    }
+
+    // 3. Picklist Services Validation
+    function isValidServiceItem(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 256
+        && data.status is string && (data.status == 'Active' || data.status == 'Inactive');
+    }
+
+    match /picklist_services/{serviceId} {
+      allow read: if true;
+      allow create: if isValidId(serviceId) && isValidServiceItem(incoming());
+      allow update: if isValidId(serviceId) && isValidServiceItem(incoming());
+      allow delete: if isValidId(serviceId);
+    }
+
+    // 4. Closed Leads Validation
+    function isValidClosedLead(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.callRecordId is string && data.callRecordId.size() <= 128
+        && data.clientName is string && data.clientName.size() <= 256
+        && data.clientNumber is string && data.clientNumber.size() <= 64
+        && data.takenService is string && data.takenService.size() <= 256
+        && (data.amountPaid is int || data.amountPaid is float)
+        && data.paidBy is string && data.paidBy.size() <= 256
+        && data.closedDate is string && data.closedDate.size() <= 128;
+    }
+
+    match /closed_leads/{leadId} {
+      allow read: if true;
+      allow create: if isValidId(leadId) && isValidClosedLead(incoming());
+      allow update: if isValidId(leadId) && isValidClosedLead(incoming());
+      allow delete: if isValidId(leadId);
+    }
+  }
+}

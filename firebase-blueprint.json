@@ -1,0 +1,83 @@
+{
+  "entities": {
+    "StaffMember": {
+      "title": "StaffMember",
+      "description": "A corporate staff member managed within the directory",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Suspended"] },
+        "joinedDate": { "type": "string" },
+        "password": { "type": "string" }
+      },
+      "required": ["id", "fullName", "email", "role", "status", "joinedDate"]
+    },
+    "CallRecord": {
+      "title": "CallRecord",
+      "description": "Log of client phone calls and followup state",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientName": { "type": "string" },
+        "clientNumber": { "type": "string" },
+        "callStatus": { "type": "string" },
+        "followupDate": { "type": "string" },
+        "interestedService": { "type": "string" },
+        "loggedBy": { "type": "string" },
+        "createdDate": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "clientName", "clientNumber", "callStatus", "loggedBy", "createdDate"]
+    },
+    "ServiceItem": {
+      "title": "ServiceItem",
+      "description": "Picklists and services offered by the company",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Inactive"] }
+      },
+      "required": ["id", "name", "status"]
+    },
+    "ClosedLead": {
+      "title": "ClosedLead",
+      "description": "A lead that was successfully converted and payment collected",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "callRecordId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "clientNumber": { "type": "string" },
+        "takenService": { "type": "string" },
+        "amountPaid": { "type": "number" },
+        "paidBy": { "type": "string" },
+        "closedDate": { "type": "string" },
+        "notes": { "type": "string" },
+        "closedBy": { "type": "string" }
+      },
+      "required": ["id", "callRecordId", "clientName", "clientNumber", "takenService", "amountPaid", "paidBy", "closedDate"]
+    }
+  },
+  "firestore": {
+    "staff_members": {
+      "schema": "StaffMember",
+      "description": "Contains staff user account records"
+    },
+    "call_records": {
+      "schema": "CallRecord",
+      "description": "Tracks call history logs and client touchpoints"
+    },
+    "picklist_services": {
+      "schema": "ServiceItem",
+      "description": "Available enterprise offerings configured in picklists"
+    },
+    "closed_leads": {
+      "schema": "ClosedLead",
+      "description": "Conversions and closed revenue transaction details"
+    }
+  }
+}

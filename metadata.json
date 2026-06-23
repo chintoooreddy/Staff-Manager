@@ -1,0 +1,6 @@
+{
+  "name": "Staff Manager",
+  "description": "An administrative portal for login authentication, staff directory, call logs, picklists, and closed leads with persistent Google Cloud Firebase Firestore integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
