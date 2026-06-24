@@ -73,6 +73,7 @@ export interface SentEmail {
   sentAt: string;
   status: 'Delivered' | 'Failed';
   resetLink?: string;
+  resetToken?: string;
 }
 
 

@@ -116,21 +116,36 @@ export default function SmtpConfiguration() {
     }
   };
 
-  const handleTestConnection = () => {
+  const handleTestConnection = async () => {
     if (!config.host || !config.senderEmail) {
       setStatusMessage({ text: 'Please enter a valid SMTP Host and Sender Email before testing.', type: 'error' });
       return;
     }
     setIsTesting(true);
     setStatusMessage(null);
-    setTimeout(() => {
-      setIsTesting(false);
+    try {
+      const res = await fetch('/api/test-smtp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ smtp: config }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Connection rejected by mail server');
+      }
       setStatusMessage({
-        text: `SMTP Handshake Verified! Successfully connected to ${config.host}:${config.port} via ${config.encryption}. Ready to dispatch password reset emails.`,
+        text: `SMTP Handshake Verified! ${data.message || `Connected to ${config.host}:${config.port}`}. Ready to dispatch password reset emails.`,
         type: 'success',
       });
-      setTimeout(() => setStatusMessage(null), 5000);
-    }, 1500);
+    } catch (err: any) {
+      setStatusMessage({
+        text: `SMTP Handshake Failed: ${err.message}. Please verify your username, App Password, and port settings.`,
+        type: 'error',
+      });
+    } finally {
+      setIsTesting(false);
+      setTimeout(() => setStatusMessage(null), 8000);
+    }
   };
 
   const handleClearLogs = async () => {
@@ -427,7 +442,7 @@ export default function SmtpConfiguration() {
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-right">
-                      {item.resetLink && (
+                      {(item.resetLink || item.resetToken || item.subject.includes('Password Reset')) && (
                         <button
                           onClick={() => setSelectedEmailModal(item)}
                           className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-bold hover:underline cursor-pointer"
@@ -479,17 +494,6 @@ export default function SmtpConfiguration() {
               </div>
               <div className="pt-2 flex items-center justify-between">
                 <span className="text-[11px] text-slate-400">Delivered via SMTP ({config.host})</span>
-                {selectedEmailModal.resetLink && (
-                  <a
-                    href={selectedEmailModal.resetLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 font-bold text-xs shadow-sm transition-all"
-                  >
-                    <span>Click Password Reset Link</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                )}
               </div>
             </div>
           </div>
