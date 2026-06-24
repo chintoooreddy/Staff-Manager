@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { LogOut, Users, PhoneCall, ShieldCheck, LayoutDashboard, Settings, Menu, X, UserCheck, TrendingUp } from 'lucide-react';
+import { LogOut, Users, PhoneCall, ShieldCheck, LayoutDashboard, Settings, Menu, X, UserCheck, TrendingUp, Mail } from 'lucide-react';
 import Login from './components/Login';
 import StaffManagement from './components/StaffManagement';
 import StaffForm from './components/StaffForm';
@@ -15,6 +15,7 @@ import AnalyticsDashboard from './components/AnalyticsDashboard';
 import PicklistManagement from './components/PicklistManagement';
 import ClosedLeads from './components/ClosedLeads';
 import Turnover from './components/Turnover';
+import SmtpConfiguration from './components/SmtpConfiguration';
 import { StaffMember, CallRecord, ServiceItem, ClosedLead, CallStatus } from './types';
 
 // Firebase imports
@@ -138,8 +139,8 @@ export default function App() {
   const [currentUserRole, setCurrentUserRole] = useState<string>('Admin');
   const [currentUserFullName, setCurrentUserFullName] = useState<string>('Administrator');
   
-  // App views: 'analytics' (Operational Dashboard), 'staff' (Staff Management), 'calls' (Call Management), 'picklist' (Picklist Management), 'closed_leads' (Closed Leads) or 'turnover' (Corporate Turnover)
-  const [activeTab, setActiveTab] = useState<'analytics' | 'staff' | 'calls' | 'picklist' | 'closed_leads' | 'turnover'>('analytics');
+  // App views: 'analytics' (Operational Dashboard), 'staff' (Staff Management), 'calls' (Call Management), 'picklist' (Picklist Management), 'closed_leads' (Closed Leads), 'turnover' (Corporate Turnover) or 'smtp'
+  const [activeTab, setActiveTab] = useState<'analytics' | 'staff' | 'calls' | 'picklist' | 'closed_leads' | 'turnover' | 'smtp'>('analytics');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
   // Staff state
@@ -684,6 +685,22 @@ export default function App() {
                       <TrendingUp className="w-4 h-4 shrink-0" />
                       <span>Turnover Matrix</span>
                     </button>
+
+                    <button
+                      onClick={() => {
+                        setActiveTab('smtp');
+                        setIsMobileSidebarOpen(false);
+                      }}
+                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-3 cursor-pointer ${
+                        activeTab === 'smtp'
+                          ? 'bg-slate-900 text-white shadow-sm border border-slate-900'
+                          : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50 border border-transparent'
+                      }`}
+                      id="tab-toggle-smtp"
+                    >
+                      <Mail className="w-4 h-4 shrink-0" />
+                      <span>SMTP Configuration</span>
+                    </button>
                   </>
                 )}
               </nav>
@@ -773,6 +790,10 @@ export default function App() {
                       closedLeads={closedLeads}
                       staffList={staffList}
                     />
+                  </div>
+                ) : activeTab === 'smtp' && currentUserRole === 'Admin' ? (
+                  <div key="smtp-viewport" className="animate-fade-in">
+                    <SmtpConfiguration />
                   </div>
                 ) : (
                   <div key="calls-viewport" className="animate-fade-in">

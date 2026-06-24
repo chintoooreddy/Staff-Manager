@@ -54,4 +54,26 @@ export interface ServiceItem {
   status: 'Active' | 'Inactive';
 }
 
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  senderEmail: string;
+  senderName: string;
+  username: string;
+  password?: string;
+  encryption: 'TLS' | 'SSL' | 'None';
+  isEnabled: boolean;
+}
+
+export interface SentEmail {
+  id: string;
+  to: string;
+  subject: string;
+  body: string;
+  sentAt: string;
+  status: 'Delivered' | 'Failed';
+  resetLink?: string;
+}
+
+
 
