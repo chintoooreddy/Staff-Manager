@@ -46,6 +46,9 @@ export interface ClosedLead {
   closedDate: string;
   notes?: string;
   closedBy?: string;
+  panelNameUrl?: string;
+  panelUsername?: string;
+  panelPassword?: string;
 }
 
 export interface ServiceItem {

@@ -6,10 +6,10 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Search, Trash2, Edit3, Coins, CreditCard, TrendingUp, X, Save,
+  Search, Trash2, Edit3, Coins, CreditCard, X, Save,
   AlertCircle, ChevronDown, CheckCircle2, DollarSign, Calendar, HeartHandshake, User, Phone, UserCheck, Download
 } from 'lucide-react';
-import { ClosedLead, ServiceItem } from '../types';
+import { ClosedLead, ServiceItem, StaffMember } from '../types';
 
 interface ClosedLeadsProps {
   closedLeads: ClosedLead[];
@@ -18,6 +18,7 @@ interface ClosedLeadsProps {
   onDeleteClosedLead?: (id: string) => void;
   currentUserRole?: string;
   currentUserFullName?: string;
+  staffList?: StaffMember[];
 }
 
 export default function ClosedLeads({
@@ -27,17 +28,26 @@ export default function ClosedLeads({
   onDeleteClosedLead,
   currentUserRole,
   currentUserFullName,
+  staffList,
 }: ClosedLeadsProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [serviceFilter, setServiceFilter] = useState('All');
   const [paymentFilter, setPaymentFilter] = useState('All');
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
+  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState<string>('All');
 
-  // Filter visible closed leads based on user role
+  // Extract unique employee names
+  const staffNames = (staffList || []).map(s => s.fullName).filter(Boolean);
+  const leadClosedByNames = closedLeads.map(c => c.closedBy || 'Administrator').filter(Boolean);
+  const uniqueEmployees = Array.from(new Set([...staffNames, ...leadClosedByNames])).sort();
+
+  // Filter visible closed leads based on user role or Admin employee selection
   const visibleLeads = currentUserRole === 'User'
     ? closedLeads.filter((lead) => (lead.closedBy || 'Administrator').toLowerCase() === (currentUserFullName || '').toLowerCase())
-    : closedLeads;
+    : selectedEmployeeFilter === 'All'
+      ? closedLeads
+      : closedLeads.filter((lead) => (lead.closedBy || 'Administrator').toLowerCase() === selectedEmployeeFilter.toLowerCase());
 
   // Edit closed lead state
   const [editingLead, setEditingLead] = useState<ClosedLead | null>(null);
@@ -70,7 +80,17 @@ export default function ClosedLeads({
   // Financial statistics for current month only
   const totalLeadsCurrentMonth = currentMonthLeads.length;
   const totalRevenueCurrentMonth = currentMonthLeads.reduce((acc, c) => acc + (c.amountPaid || 0), 0);
-  const averageLeadValueCurrentMonth = totalLeadsCurrentMonth > 0 ? Math.round(totalRevenueCurrentMonth / totalLeadsCurrentMonth) : 0;
+
+  // Service wise revenue current month
+  const serviceWiseRevenueCurrentMonth = currentMonthLeads.reduce((acc: { [key: string]: { count: number; amount: number } }, lead) => {
+    const s = lead.takenService || 'Unspecified';
+    if (!acc[s]) {
+      acc[s] = { count: 0, amount: 0 };
+    }
+    acc[s].count += 1;
+    acc[s].amount += (lead.amountPaid || 0);
+    return acc;
+  }, {});
 
   // Distinct payment methods & services for filters
   const uniqueServices = ['All', ...Array.from(new Set(visibleLeads.map((c) => c.takenService)))];
@@ -267,8 +287,87 @@ export default function ClosedLeads({
         </div>
       </div>
 
+      {/* Admin Employee Revenue Breakdown */}
+      {currentUserRole === 'Admin' && (
+        <div className="bg-slate-900 text-white rounded-2xl p-5 shadow-sm border border-slate-800 space-y-4" id="admin-user-performance-panel">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-2">
+                <UserCheck className="w-4 h-4" />
+                Employee Revenue Analytics (Admin)
+              </h2>
+              <p className="text-xs text-slate-400 mt-1">Select an employee to filter all directory records and view their service-wise & total closed revenue.</p>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <label className="text-xs text-slate-400 font-medium whitespace-nowrap">Select Employee:</label>
+              <select
+                value={selectedEmployeeFilter}
+                onChange={(e) => setSelectedEmployeeFilter(e.target.value)}
+                className="bg-slate-800 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 outline-none focus:border-indigo-400 font-semibold min-w-[180px] cursor-pointer"
+              >
+                <option value="All">All Employees (Combined)</option>
+                {uniqueEmployees.map((emp) => (
+                  <option key={emp} value={emp}>{emp}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {(() => {
+            const targetLeads = selectedEmployeeFilter === 'All'
+              ? closedLeads
+              : closedLeads.filter(l => (l.closedBy || 'Administrator').toLowerCase() === selectedEmployeeFilter.toLowerCase());
+            
+            const totalAmt = targetLeads.reduce((acc, l) => acc + (l.amountPaid || 0), 0);
+            
+            const serviceBreakdown = targetLeads.reduce((acc: { [key: string]: { count: number; amount: number } }, l) => {
+              const s = l.takenService || 'Unspecified';
+              if (!acc[s]) acc[s] = { count: 0, amount: 0 };
+              acc[s].count += 1;
+              acc[s].amount += (l.amountPaid || 0);
+              return acc;
+            }, {});
+
+            return (
+              <div className="pt-3 border-t border-slate-800 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-800/80 p-3.5 rounded-xl border border-slate-700/60">
+                  <span className="text-xs text-slate-300 font-medium">
+                    Overall Performance for: <span className="font-bold text-white ml-1">{selectedEmployeeFilter === 'All' ? 'All Employees' : selectedEmployeeFilter}</span>
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-slate-400">{targetLeads.length} total {targetLeads.length === 1 ? 'deal' : 'deals'}</span>
+                    <span className="text-base font-bold text-emerald-400">Total Closed: ₹{totalAmt.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Service-Wise Closed Amount</p>
+                  {Object.keys(serviceBreakdown).length === 0 ? (
+                    <p className="text-xs text-slate-500 italic py-1">No closed deals found for this selection.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                      {Object.entries(serviceBreakdown)
+                        .sort((a, b) => b[1].amount - a[1].amount)
+                        .map(([srv, dt]) => (
+                          <div key={srv} className="bg-slate-800/90 p-3 rounded-xl border border-slate-700/70 flex flex-col justify-between">
+                            <div className="flex items-start justify-between gap-2 mb-1">
+                              <span className="text-xs font-semibold text-slate-200 line-clamp-1" title={srv}>{srv}</span>
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 whitespace-nowrap">{dt.count} deals</span>
+                            </div>
+                            <span className="text-sm font-bold text-indigo-300 mt-1">₹{dt.amount.toLocaleString()}</span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
       {/* Financial KPIs Banner */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4" id="closed-leads-stats">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" id="closed-leads-stats">
         {/* Total closed deals */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
           <div>
@@ -290,17 +389,28 @@ export default function ClosedLeads({
             <Coins className="w-5.5 h-5.5" />
           </div>
         </div>
+      </div>
 
-        {/* Average value */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Average Revenue (This Month)</p>
-            <p className="text-3xl font-semibold text-slate-900 tracking-tight">₹{averageLeadValueCurrentMonth.toLocaleString()}</p>
+      {/* Service Wise Revenue Current Month */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5" id="service-wise-revenue-grid">
+        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Service-Wise Revenue ({currentMonthName} {currentYearStr})</h3>
+        {Object.keys(serviceWiseRevenueCurrentMonth).length === 0 ? (
+          <p className="text-xs text-slate-400 py-2">No closed leads recorded in {currentMonthName} {currentYearStr} yet.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {Object.entries(serviceWiseRevenueCurrentMonth)
+              .sort((a, b) => b[1].amount - a[1].amount)
+              .map(([serviceName, data]) => (
+                <div key={serviceName} className="p-3.5 bg-slate-50 border border-slate-200/70 rounded-xl flex flex-col justify-between">
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <span className="text-xs font-semibold text-slate-700 line-clamp-1" title={serviceName}>{serviceName}</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-700 whitespace-nowrap">{data.count} {data.count === 1 ? 'deal' : 'deals'}</span>
+                  </div>
+                  <span className="text-base font-bold text-slate-900 mt-1">₹{data.amount.toLocaleString()}</span>
+                </div>
+              ))}
           </div>
-          <div className="w-11 h-11 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center border border-sky-100">
-            <TrendingUp className="w-5.5 h-5.5" />
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Central Interactive Grid */}
@@ -657,11 +767,12 @@ export default function ClosedLeads({
                         id="edit-amount-paid"
                         min="0"
                         value={editAmountPaid}
+                        onWheel={(e) => e.currentTarget.blur()}
                         onChange={(e) => {
                           const val = e.target.value;
                           setEditAmountPaid(val === '' ? '' : Number(val));
                         }}
-                        className="block w-full pl-8 pr-3.5 py-2.5 bg-white border border-slate-205 text-slate-900 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 text-sm"
+                        className="block w-full pl-8 pr-3.5 py-2.5 bg-white border border-slate-205 text-slate-900 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 text-sm no-stepper [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </div>
                   </div>

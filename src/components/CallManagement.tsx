@@ -23,7 +23,7 @@ interface CallManagementProps {
   onEditCall: (record: CallRecord) => void;
   onDeleteCall: (id: string) => void;
   onSaveCall: (callData: Omit<CallRecord, 'id' | 'createdDate'> & { id?: string }) => void;
-  onCloseLead: (leadData: { callRecordId: string; clientName: string; clientNumber: string; takenService: string; amountPaid: number; paidBy: string }) => void;
+  onCloseLead: (leadData: { callRecordId: string; clientName: string; clientNumber: string; takenService: string; amountPaid: number; paidBy: string; panelNameUrl?: string; panelUsername?: string; panelPassword?: string }) => void;
 }
 
 export default function CallManagement({
@@ -86,10 +86,14 @@ export default function CallManagement({
 
   // Close Lead states
   const [closingLeadRecord, setClosingLeadRecord] = useState<CallRecord | null>(null);
+  const [closeLeadTab, setCloseLeadTab] = useState<'business' | 'panel'>('business');
   const [takenService, setTakenService] = useState<string>('');
   const [amountPaid, setAmountPaid] = useState<number | ''>('');
   const [paidBy, setPaidBy] = useState<string>('Cash');
   const [customPaidBy, setCustomPaidBy] = useState<string>('');
+  const [panelNameUrl, setPanelNameUrl] = useState<string>('');
+  const [panelUsername, setPanelUsername] = useState<string>('');
+  const [panelPassword, setPanelPassword] = useState<string>('');
   const [closeLeadError, setCloseLeadError] = useState<string>('');
 
   // Helper to parse date string like "Jun 23, 2026" to local Date object
@@ -422,11 +426,15 @@ export default function CallManagement({
 
   const handleOpenCloseLead = (call: CallRecord) => {
     setClosingLeadRecord(call);
+    setCloseLeadTab('business');
     const activeServices = services.filter((s) => s.status === 'Active');
     setTakenService(call.interestedService || activeServices[0]?.name || '');
     setAmountPaid('');
     setPaidBy('Cash');
     setCustomPaidBy('');
+    setPanelNameUrl('');
+    setPanelUsername('');
+    setPanelPassword('');
     setCloseLeadError('');
   };
 
@@ -453,6 +461,9 @@ export default function CallManagement({
       takenService: takenService,
       amountPaid: Number(amountPaid),
       paidBy: finalPaidBy,
+      panelNameUrl: panelNameUrl.trim(),
+      panelUsername: panelUsername.trim(),
+      panelPassword: panelPassword,
     });
 
     setClosingLeadRecord(null);
@@ -1386,6 +1397,32 @@ export default function CallManagement({
                   </button>
                 </div>
 
+                {/* Tabs */}
+                <div className="flex border-b border-slate-200 bg-slate-50 px-6 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setCloseLeadTab('business')}
+                    className={`pb-3 px-4 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+                      closeLeadTab === 'business'
+                        ? 'border-emerald-600 text-emerald-600'
+                        : 'border-transparent text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    Business Details
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCloseLeadTab('panel')}
+                    className={`pb-3 px-4 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+                      closeLeadTab === 'panel'
+                        ? 'border-emerald-600 text-emerald-600'
+                        : 'border-transparent text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    Panel Details
+                  </button>
+                </div>
+
                 {/* Form fields */}
                 <div className="p-6 space-y-5 overflow-y-auto max-h-[70vh]" id="close-lead-modal-content">
                   {closeLeadError && (
@@ -1395,8 +1432,10 @@ export default function CallManagement({
                     </div>
                   )}
 
-                  {/* Read-only client details */}
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 space-y-3">
+                  {closeLeadTab === 'business' && (
+                    <div className="space-y-5 animate-fade-in">
+                      {/* Read-only client details */}
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 space-y-3">
                     <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Client Identity (Read-Only)</span>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -1447,11 +1486,12 @@ export default function CallManagement({
                         min="0"
                         placeholder="E.g., 5000"
                         value={amountPaid}
+                        onWheel={(e) => e.currentTarget.blur()}
                         onChange={(e) => {
                           const val = e.target.value;
                           setAmountPaid(val === '' ? '' : Number(val));
                         }}
-                        className="block w-full pl-8 pr-3.5 py-2.5 bg-white border border-slate-205 text-slate-900 placeholder:text-slate-400 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 text-sm"
+                        className="block w-full pl-8 pr-3.5 py-2.5 bg-white border border-slate-205 text-slate-900 placeholder:text-slate-400 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 text-sm no-stepper [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </div>
                   </div>
@@ -1497,6 +1537,58 @@ export default function CallManagement({
                       </div>
                     )}
                   </div>
+                    </div>
+                  )}
+
+                  {closeLeadTab === 'panel' && (
+                    <div className="space-y-4 animate-fade-in">
+                      <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/60 text-xs text-slate-600 leading-relaxed">
+                        Specify optional service panel credentials or login URL for the client.
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide" htmlFor="panel-name-url-input">
+                          Service Panel Name / URL (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          id="panel-name-url-input"
+                          placeholder="E.g., https://panel.example.com or SEO Portal"
+                          value={panelNameUrl}
+                          onChange={(e) => setPanelNameUrl(e.target.value)}
+                          className="block w-full px-3.5 py-2.5 bg-white border border-slate-205 text-slate-900 placeholder:text-slate-400 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 text-sm"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide" htmlFor="panel-username-input">
+                          Username (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          id="panel-username-input"
+                          placeholder="Client login username"
+                          value={panelUsername}
+                          onChange={(e) => setPanelUsername(e.target.value)}
+                          className="block w-full px-3.5 py-2.5 bg-white border border-slate-205 text-slate-900 placeholder:text-slate-400 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 text-sm"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide" htmlFor="panel-password-input">
+                          Password (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          id="panel-password-input"
+                          placeholder="Client login password"
+                          value={panelPassword}
+                          onChange={(e) => setPanelPassword(e.target.value)}
+                          className="block w-full px-3.5 py-2.5 bg-white border border-slate-205 text-slate-900 placeholder:text-slate-400 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 text-sm font-mono"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Footer controls */}

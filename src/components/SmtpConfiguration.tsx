@@ -278,6 +278,7 @@ export default function SmtpConfiguration() {
                 type="number"
                 required
                 value={config.port}
+                onWheel={(e) => e.currentTarget.blur()}
                 onChange={(e) => handleChange('port', Number(e.target.value))}
                 placeholder="587"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none transition-all"

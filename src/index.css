@@ -1,1 +1,12 @@
 @import "tailwindcss";
+
+/* Remove number stepper arrows */
+input[type="number"].no-stepper::-webkit-inner-spin-button,
+input[type="number"].no-stepper::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"].no-stepper {
+  -moz-appearance: textfield;
+}
+

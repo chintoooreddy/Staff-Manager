@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { LogOut, Users, PhoneCall, ShieldCheck, LayoutDashboard, Settings, Menu, X, UserCheck, TrendingUp, Mail } from 'lucide-react';
+import { LogOut, Users, PhoneCall, ShieldCheck, LayoutDashboard, Settings, Menu, X, UserCheck, TrendingUp, Mail, Search } from 'lucide-react';
 import Login from './components/Login';
 import StaffManagement from './components/StaffManagement';
 import StaffForm from './components/StaffForm';
@@ -16,6 +16,7 @@ import PicklistManagement from './components/PicklistManagement';
 import ClosedLeads from './components/ClosedLeads';
 import Turnover from './components/Turnover';
 import SmtpConfiguration from './components/SmtpConfiguration';
+import ClientLookup from './components/ClientLookup';
 import { StaffMember, CallRecord, ServiceItem, ClosedLead, CallStatus } from './types';
 
 // Firebase imports
@@ -139,8 +140,8 @@ export default function App() {
   const [currentUserRole, setCurrentUserRole] = useState<string>('Admin');
   const [currentUserFullName, setCurrentUserFullName] = useState<string>('Administrator');
   
-  // App views: 'analytics' (Operational Dashboard), 'staff' (Staff Management), 'calls' (Call Management), 'picklist' (Picklist Management), 'closed_leads' (Closed Leads), 'turnover' (Corporate Turnover) or 'smtp'
-  const [activeTab, setActiveTab] = useState<'analytics' | 'staff' | 'calls' | 'picklist' | 'closed_leads' | 'turnover' | 'smtp'>('analytics');
+  // App views: 'analytics' (Operational Dashboard), 'staff' (Staff Management), 'calls' (Call Management), 'picklist' (Picklist Management), 'closed_leads' (Closed Leads), 'turnover' (Corporate Turnover), 'smtp' or 'lookup'
+  const [activeTab, setActiveTab] = useState<'analytics' | 'staff' | 'calls' | 'picklist' | 'closed_leads' | 'turnover' | 'smtp' | 'lookup'>('analytics');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
   // Staff state
@@ -443,6 +444,9 @@ export default function App() {
     takenService: string;
     amountPaid: number;
     paidBy: string;
+    panelNameUrl?: string;
+    panelUsername?: string;
+    panelPassword?: string;
   }) => {
     // 1. Create a ClosedLead record
     const formatMonthMap: { [key: number]: string } = {
@@ -470,6 +474,9 @@ export default function App() {
       closedDate: formattedDate,
       closedBy: originalLogger || '',
       notes: '',
+      panelNameUrl: leadData.panelNameUrl || '',
+      panelUsername: leadData.panelUsername || '',
+      panelPassword: leadData.panelPassword || '',
     };
 
     // 2. Mark the corresponding CallRecord as 'Closed' synchronously using a batch
@@ -515,6 +522,9 @@ export default function App() {
       closedDate,
       closedBy: leadData.closedBy || currentUserFullName || '',
       notes: leadData.notes || '',
+      panelNameUrl: leadData.panelNameUrl || '',
+      panelUsername: leadData.panelUsername || '',
+      panelPassword: leadData.panelPassword || '',
     };
 
     setDoc(doc(db, 'closed_leads', id), cleanObjectForFirestore(updatedLead))
@@ -652,6 +662,22 @@ export default function App() {
                   <span>Closed Leads</span>
                 </button>
 
+                <button
+                  onClick={() => {
+                    setActiveTab('lookup');
+                    setIsMobileSidebarOpen(false);
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-3 cursor-pointer ${
+                    activeTab === 'lookup'
+                      ? 'bg-slate-900 text-white shadow-sm border border-slate-900'
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50 border border-transparent'
+                  }`}
+                  id="tab-toggle-lookup"
+                >
+                  <Search className="w-4 h-4 shrink-0" />
+                  <span>Lookup Module</span>
+                </button>
+
                 {currentUserRole === 'Admin' && (
                   <>
                     <button
@@ -782,6 +808,7 @@ export default function App() {
                       onDeleteClosedLead={handleDeleteClosedLead}
                       currentUserRole={currentUserRole}
                       currentUserFullName={currentUserFullName}
+                      staffList={staffList}
                     />
                   </div>
                 ) : activeTab === 'turnover' && currentUserRole === 'Admin' ? (
@@ -794,6 +821,17 @@ export default function App() {
                 ) : activeTab === 'smtp' && currentUserRole === 'Admin' ? (
                   <div key="smtp-viewport" className="animate-fade-in">
                     <SmtpConfiguration />
+                  </div>
+                ) : activeTab === 'lookup' ? (
+                  <div key="lookup-viewport" className="animate-fade-in">
+                    <ClientLookup
+                      callList={callList}
+                      closedLeads={closedLeads}
+                      services={services}
+                      onCloseLead={handleCloseLead}
+                      currentUserRole={currentUserRole}
+                      currentUserFullName={currentUserFullName}
+                    />
                   </div>
                 ) : (
                   <div key="calls-viewport" className="animate-fade-in">
