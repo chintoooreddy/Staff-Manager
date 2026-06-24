@@ -31,6 +31,8 @@ export default function ClosedLeads({
   const [searchTerm, setSearchTerm] = useState('');
   const [serviceFilter, setServiceFilter] = useState('All');
   const [paymentFilter, setPaymentFilter] = useState('All');
+  const [startDateFilter, setStartDateFilter] = useState('');
+  const [endDateFilter, setEndDateFilter] = useState('');
 
   // Filter visible closed leads based on user role
   const visibleLeads = currentUserRole === 'User'
@@ -74,6 +76,44 @@ export default function ClosedLeads({
   const uniqueServices = ['All', ...Array.from(new Set(visibleLeads.map((c) => c.takenService)))];
   const uniquePayments = ['All', ...Array.from(new Set(visibleLeads.map((c) => c.paidBy)))];
 
+  const parseRecordDate = (dateStr: string): Date => {
+    if (!dateStr) return new Date(0);
+    const cleaned = dateStr.replace(',', '').trim();
+    const parts = cleaned.split(/\s+/);
+    if (parts.length === 3) {
+      const monthMap: { [key: string]: number } = {
+        'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+        'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11,
+        'January': 0, 'February': 1, 'March': 2, 'April': 3, 'June': 5,
+        'July': 6, 'August': 7, 'September': 8, 'October': 9, 'November': 10, 'December': 11
+      };
+      const month = monthMap[parts[0]] !== undefined ? monthMap[parts[0]] : 0;
+      const day = parseInt(parts[1], 10) || 1;
+      const year = parseInt(parts[2], 10) || new Date().getFullYear();
+      const d = new Date(year, month, day);
+      d.setHours(12, 0, 0, 0);
+      return d;
+    }
+    const parsed = Date.parse(dateStr);
+    if (!isNaN(parsed)) {
+      const d = new Date(parsed);
+      d.setHours(12, 0, 0, 0);
+      return d;
+    }
+    return new Date();
+  };
+
+  const parseInputDate = (isoStr: string, isEnd: boolean): Date => {
+    const [y, m, d] = isoStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    if (isEnd) {
+      date.setHours(23, 59, 59, 999);
+    } else {
+      date.setHours(0, 0, 0, 0);
+    }
+    return date;
+  };
+
   // Filtering implementation
   const filteredLeads = visibleLeads.filter((lead) => {
     const matchesSearch =
@@ -85,7 +125,20 @@ export default function ClosedLeads({
     const matchesService = serviceFilter === 'All' || lead.takenService === serviceFilter;
     const matchesPayment = paymentFilter === 'All' || lead.paidBy === paymentFilter;
 
-    return matchesSearch && matchesService && matchesPayment;
+    let matchesDateRange = true;
+    if (startDateFilter || endDateFilter) {
+      const recordDate = parseRecordDate(lead.closedDate);
+      if (startDateFilter) {
+        const start = parseInputDate(startDateFilter, false);
+        if (recordDate < start) matchesDateRange = false;
+      }
+      if (endDateFilter) {
+        const end = parseInputDate(endDateFilter, true);
+        if (recordDate > end) matchesDateRange = false;
+      }
+    }
+
+    return matchesSearch && matchesService && matchesPayment && matchesDateRange;
   });
 
   const escapeCSVCell = (val: string): string => {
@@ -296,12 +349,31 @@ export default function ClosedLeads({
               ))}
             </select>
 
-            {(searchTerm || serviceFilter !== 'All' || paymentFilter !== 'All') && (
+            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1">
+              <span className="text-[10px] font-semibold text-slate-400 uppercase">From:</span>
+              <input
+                type="date"
+                value={startDateFilter}
+                onChange={(e) => setStartDateFilter(e.target.value)}
+                className="text-xs font-semibold text-slate-700 bg-transparent border-0 focus:outline-hidden p-0 cursor-pointer"
+              />
+              <span className="text-[10px] font-semibold text-slate-400 uppercase ml-1">To:</span>
+              <input
+                type="date"
+                value={endDateFilter}
+                onChange={(e) => setEndDateFilter(e.target.value)}
+                className="text-xs font-semibold text-slate-700 bg-transparent border-0 focus:outline-hidden p-0 cursor-pointer"
+              />
+            </div>
+
+            {(searchTerm || serviceFilter !== 'All' || paymentFilter !== 'All' || startDateFilter || endDateFilter) && (
               <button
                 onClick={() => {
                   setSearchTerm('');
                   setServiceFilter('All');
                   setPaymentFilter('All');
+                  setStartDateFilter('');
+                  setEndDateFilter('');
                 }}
                 className="py-1.5 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1 cursor-pointer"
               >

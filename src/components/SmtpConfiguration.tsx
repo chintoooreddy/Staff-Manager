@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Mail, Server, Shield, Lock, Eye, EyeOff, CheckCircle2, Send, RefreshCw, Trash2, AlertCircle, ExternalLink } from 'lucide-react';
 import { db } from '../firebase';
-import { doc, getDoc, setDoc, collection, onSnapshot, query, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, onSnapshot, query, deleteDoc, getDocs } from 'firebase/firestore';
 import { SmtpConfig, SentEmail } from '../types';
 
 const DEFAULT_SMTP: SmtpConfig = {
@@ -37,6 +37,7 @@ export default function SmtpConfiguration() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [selectedEmailModal, setSelectedEmailModal] = useState<SentEmail | null>(null);
 
@@ -86,6 +87,9 @@ export default function SmtpConfiguration() {
           list.sort((a, b) => b.id.localeCompare(a.id));
           setSentEmails(list);
           localStorage.setItem('portal_sent_emails', JSON.stringify(list));
+        } else {
+          setSentEmails([]);
+          localStorage.removeItem('portal_sent_emails');
         }
       },
       (err) => console.error('Error fetching sent emails:', err)
@@ -149,15 +153,21 @@ export default function SmtpConfiguration() {
   };
 
   const handleClearLogs = async () => {
-    if (!confirm('Are you sure you want to clear all dispatched email logs?')) return;
+    setIsClearing(true);
     try {
       setSentEmails([]);
       localStorage.removeItem('portal_sent_emails');
-      for (const email of sentEmails) {
-        await deleteDoc(doc(db, 'sent_emails', email.id)).catch(() => {});
+      const querySnap = await getDocs(collection(db, 'sent_emails')).catch(() => null);
+      if (querySnap) {
+        await Promise.all(querySnap.docs.map((d) => deleteDoc(d.ref).catch(() => {})));
       }
+      setStatusMessage({ text: 'All dispatched email logs have been successfully cleared.', type: 'success' });
     } catch (err) {
       console.error('Error clearing logs:', err);
+      setStatusMessage({ text: 'Failed to clear logs.', type: 'error' });
+    } finally {
+      setIsClearing(false);
+      setTimeout(() => setStatusMessage(null), 5000);
     }
   };
 
@@ -401,10 +411,11 @@ export default function SmtpConfiguration() {
           {sentEmails.length > 0 && (
             <button
               onClick={handleClearLogs}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-600 hover:bg-red-50 transition-all cursor-pointer border border-red-200/60"
+              disabled={isClearing}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50 transition-all cursor-pointer border border-red-200/60"
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Clear Log</span>
+              {isClearing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+              <span>{isClearing ? 'Clearing...' : 'Clear Log'}</span>
             </button>
           )}
         </div>

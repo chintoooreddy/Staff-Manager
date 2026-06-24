@@ -36,6 +36,7 @@ export default function AnalyticsDashboard({ currentEmail, staffList, callList, 
   const [selectedUserForFollowups, setSelectedUserForFollowups] = useState<string>(
     isUserRole && currentUserFullName ? currentUserFullName : 'Administrator'
   );
+  const [followupBoardFilter, setFollowupBoardFilter] = useState<'today' | 'all'>('today');
 
   // Let's build a list of all possible "Loggers/Users"
   // This includes the pre-defined Administrator and all Active Staff members
@@ -72,10 +73,26 @@ export default function AnalyticsDashboard({ currentEmail, staffList, callList, 
     };
   };
 
+  // Helper to get today's date string in YYYY-MM-DD format
+  const getLocalTodayISOString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Get active follow-ups for the selected user (any call status "Interested" or "Call Back" logged by this user)
-  const userScheduledFollowups = callList.filter(
+  const allUserScheduledFollowups = callList.filter(
     (c) => c.loggedBy === selectedUserForFollowups && (c.callStatus === 'Interested' || c.callStatus === 'Call Back')
   );
+
+  const userScheduledFollowups = allUserScheduledFollowups.filter((c) => {
+    if (followupBoardFilter === 'today') {
+      return c.followupDate === getLocalTodayISOString();
+    }
+    return true;
+  });
 
   // Stats overall for today (system-wide if Admin, user-specific if User)
   const overallCallsToday = callList.filter((c) => {
@@ -429,7 +446,29 @@ export default function AnalyticsDashboard({ currentEmail, staffList, callList, 
             </div>
 
             <div className="bg-white border border-slate-200/85 rounded-2xl shadow-xs p-3.5 space-y-3" id="followups-container-card">
-              
+              <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                <button
+                  onClick={() => setFollowupBoardFilter('today')}
+                  className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    followupBoardFilter === 'today'
+                      ? 'bg-white text-indigo-700 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Current Day follow ups
+                </button>
+                <button
+                  onClick={() => setFollowupBoardFilter('all')}
+                  className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    followupBoardFilter === 'all'
+                      ? 'bg-white text-indigo-700 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  All follow ups
+                </button>
+              </div>
+
               {/* Short logger visual stats card */}
               <div className="bg-slate-50 p-2 rounded-xl border border-slate-150 flex items-center justify-between">
                 <div>
@@ -447,9 +486,13 @@ export default function AnalyticsDashboard({ currentEmail, staffList, callList, 
                 {userScheduledFollowups.length === 0 ? (
                   <div className="text-center py-6 border border-dashed border-slate-200 rounded-xl bg-slate-50/40">
                     <PhoneForwarded className="w-5 h-5 text-slate-300 mx-auto mb-1.5" />
-                    <p className="text-xs text-slate-800 font-medium">No follow-ups recorded</p>
+                    <p className="text-xs text-slate-800 font-medium">
+                      {followupBoardFilter === 'today' ? 'No follow-ups for today' : 'No follow-ups recorded'}
+                    </p>
                     <p className="text-[9px] text-slate-400 mt-0.5 px-2">
-                      This user hasn't flagged any client interactions as "Interested" or "Call Back".
+                      {followupBoardFilter === 'today'
+                        ? 'No client follow-ups are scheduled for the current date.'
+                        : 'This user hasn\'t flagged any client interactions as "Interested" or "Call Back".'}
                     </p>
                   </div>
                 ) : (

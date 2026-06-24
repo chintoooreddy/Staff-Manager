@@ -51,6 +51,8 @@ export default function CallManagement({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [staffFilter, setStaffFilter] = useState<string>('All');
+  const [dailyStartDate, setDailyStartDate] = useState<string>('');
+  const [dailyEndDate, setDailyEndDate] = useState<string>('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Export module state
@@ -70,8 +72,9 @@ export default function CallManagement({
     return `${year}-${month}-${day}`;
   };
 
-  const [followupDateFilter, setFollowupDateFilter] = useState<string>(getLocalTodayDateString());
-  const [followupViewMode, setFollowupViewMode] = useState<'selected_date' | 'all'>('selected_date');
+  const [followupFromDate, setFollowupFromDate] = useState<string>(getLocalTodayDateString());
+  const [followupToDate, setFollowupToDate] = useState<string>(getLocalTodayDateString());
+  const [followupViewMode, setFollowupViewMode] = useState<'custom_range' | 'all'>('custom_range');
 
   // Follow-up Quick-Update state
   const [updatingFollowupRecord, setUpdatingFollowupRecord] = useState<CallRecord | null>(null);
@@ -333,7 +336,20 @@ export default function CallManagement({
     const matchesStatus = statusFilter === 'All' || call.callStatus === statusFilter;
     const matchesStaff = staffFilter === 'All' || call.loggedBy === staffFilter;
 
-    return matchesSearch && matchesStatus && matchesStaff;
+    let matchesDateRange = true;
+    if (dailyStartDate || dailyEndDate) {
+      const recordDate = parseRecordDate(call.createdDate);
+      if (dailyStartDate) {
+        const start = parseInputDate(dailyStartDate, false);
+        if (recordDate < start) matchesDateRange = false;
+      }
+      if (dailyEndDate) {
+        const end = parseInputDate(dailyEndDate, true);
+        if (recordDate > end) matchesDateRange = false;
+      }
+    }
+
+    return matchesSearch && matchesStatus && matchesStaff && matchesDateRange;
   });
 
   // Followup calls filtering
@@ -343,7 +359,10 @@ export default function CallManagement({
 
   const followUpCallsFiltered = followUpCallsAll.filter((call) => {
     if (followupViewMode === 'all') return true;
-    return call.followupDate === followupDateFilter;
+    if (!call.followupDate) return false;
+    if (followupFromDate && call.followupDate < followupFromDate) return false;
+    if (followupToDate && call.followupDate > followupToDate) return false;
+    return true;
   });
 
   const getStatusBadgeStyle = (status: CallStatus) => {
@@ -457,7 +476,12 @@ export default function CallManagement({
         </button>
 
         <button
-          onClick={() => setActiveSubTab('followup')}
+          onClick={() => {
+            setActiveSubTab('followup');
+            setFollowupFromDate(getLocalTodayDateString());
+            setFollowupToDate(getLocalTodayDateString());
+            setFollowupViewMode('custom_range');
+          }}
           className={`pb-3 text-sm font-semibold transition-all relative cursor-pointer flex items-center gap-2 ${
             activeSubTab === 'followup'
               ? 'text-slate-900 border-b-2 border-slate-900'
@@ -598,12 +622,31 @@ export default function CallManagement({
                     ))}
                   </select>
 
-                  {(searchTerm || statusFilter !== 'All' || staffFilter !== 'All') && (
+                  <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1">
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase">From:</span>
+                    <input
+                      type="date"
+                      value={dailyStartDate}
+                      onChange={(e) => setDailyStartDate(e.target.value)}
+                      className="text-xs font-semibold text-slate-700 bg-transparent border-0 focus:outline-hidden p-0 cursor-pointer"
+                    />
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase ml-1">To:</span>
+                    <input
+                      type="date"
+                      value={dailyEndDate}
+                      onChange={(e) => setDailyEndDate(e.target.value)}
+                      className="text-xs font-semibold text-slate-700 bg-transparent border-0 focus:outline-hidden p-0 cursor-pointer"
+                    />
+                  </div>
+
+                  {(searchTerm || statusFilter !== 'All' || staffFilter !== 'All' || dailyStartDate || dailyEndDate) && (
                     <button
                       onClick={() => {
                         setSearchTerm('');
                         setStatusFilter('All');
                         setStaffFilter('All');
+                        setDailyStartDate('');
+                        setDailyEndDate('');
                       }}
                       className="p-1 px-2.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-semibold text-slate-700 flex items-center gap-1 cursor-pointer"
                       id="btn-quick-reset"
@@ -616,10 +659,16 @@ export default function CallManagement({
                   <button
                     onClick={() => {
                       const todayISO = new Date().toISOString().split('T')[0];
-                      setExportStartDate(todayISO);
-                      setExportEndDate(todayISO);
+                      if (dailyStartDate && dailyEndDate) {
+                        setExportStartDate(dailyStartDate);
+                        setExportEndDate(dailyEndDate);
+                        setExportRange('Custom');
+                      } else {
+                        setExportStartDate(todayISO);
+                        setExportEndDate(todayISO);
+                        setExportRange('Today');
+                      }
                       setCustomFilename(`calls_export_${todayISO}.csv`);
-                      setExportRange('Today');
                       setExportError('');
                       setIsExportModalOpen(true);
                     }}
@@ -810,14 +859,14 @@ export default function CallManagement({
               <div className="flex flex-wrap items-center gap-3">
                 <div className="bg-slate-100 p-0.5 rounded-lg flex items-center border border-slate-200/40">
                   <button
-                    onClick={() => setFollowupViewMode('selected_date')}
+                    onClick={() => setFollowupViewMode('custom_range')}
                     className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
-                      followupViewMode === 'selected_date'
+                      followupViewMode === 'custom_range'
                         ? 'bg-white text-slate-900 shadow-2xs'
                         : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
-                    Specific Date
+                    Custom Range
                   </button>
                   <button
                     onClick={() => setFollowupViewMode('all')}
@@ -831,17 +880,28 @@ export default function CallManagement({
                   </button>
                 </div>
 
-                {followupViewMode === 'selected_date' && (
-                  <div className="flex items-center gap-2">
+                {followupViewMode === 'custom_range' && (
+                  <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1">
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase">From:</span>
                     <input
                       type="date"
-                      value={followupDateFilter}
-                      onChange={(e) => setFollowupDateFilter(e.target.value)}
-                      className="py-1.5 px-3 border border-slate-200 rounded-xl bg-white text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-slate-900/5 focus:border-slate-800"
+                      value={followupFromDate}
+                      onChange={(e) => setFollowupFromDate(e.target.value)}
+                      className="text-xs font-semibold text-slate-800 bg-transparent border-0 focus:outline-hidden p-0 cursor-pointer"
+                    />
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase ml-1">To:</span>
+                    <input
+                      type="date"
+                      value={followupToDate}
+                      onChange={(e) => setFollowupToDate(e.target.value)}
+                      className="text-xs font-semibold text-slate-800 bg-transparent border-0 focus:outline-hidden p-0 cursor-pointer"
                     />
                     <button
-                      onClick={() => setFollowupDateFilter(getLocalTodayDateString())}
-                      className="p-1.5 border border-slate-200 rounded-xl bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold cursor-pointer transition-colors"
+                      onClick={() => {
+                        setFollowupFromDate(getLocalTodayDateString());
+                        setFollowupToDate(getLocalTodayDateString());
+                      }}
+                      className="ml-1 p-1 hover:bg-slate-100 rounded text-[11px] font-semibold text-slate-600 cursor-pointer"
                       title="Reset to today"
                     >
                       Today
@@ -870,11 +930,11 @@ export default function CallManagement({
                   </div>
                   <h4 className="font-semibold text-slate-900 text-sm">No follow-ups found</h4>
                   <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-                    {followupViewMode === 'selected_date'
-                      ? `No clients are scheduled for a callback or marked interested on ${followupDateFilter}. Check another date or click "Show All Pending".`
+                    {followupViewMode === 'custom_range'
+                      ? `No clients are scheduled for a callback or marked interested between ${followupFromDate} and ${followupToDate}. Check another date range or click "Show All Pending".`
                       : 'You do not have any pending follow-ups in the system right now.'}
                   </p>
-                  {followupViewMode === 'selected_date' && (
+                  {followupViewMode === 'custom_range' && (
                     <button
                       onClick={() => setFollowupViewMode('all')}
                       className="mt-4 px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow-2xs transition-all cursor-pointer"
