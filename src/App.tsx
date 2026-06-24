@@ -21,6 +21,16 @@ import { StaffMember, CallRecord, ServiceItem, ClosedLead, CallStatus } from './
 import { db, handleFirestoreError, OperationType } from './firebase';
 import { collection, onSnapshot, setDoc, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 
+function cleanObjectForFirestore<T extends Record<string, any>>(obj: T): T {
+  const cleaned: Record<string, any> = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (val !== undefined) {
+      cleaned[key] = val;
+    }
+  }
+  return cleaned as T;
+}
+
 // Preseed records for realistic corporate directory
 const DEFAULT_PRESEED_STAFF: StaffMember[] = [
   {
@@ -164,7 +174,7 @@ export default function App() {
         const batch = writeBatch(db);
         DEFAULT_PRESEED_STAFF.forEach((staff) => {
           const docRef = doc(db, 'staff_members', staff.id);
-          batch.set(docRef, staff);
+          batch.set(docRef, cleanObjectForFirestore(staff));
         });
         batch.commit().catch((err) => handleFirestoreError(err, OperationType.WRITE, 'staff_members'));
       } else {
@@ -186,7 +196,7 @@ export default function App() {
         const batch = writeBatch(db);
         DEFAULT_PRESEED_CALLS.forEach((call) => {
           const docRef = doc(db, 'call_records', call.id);
-          batch.set(docRef, call);
+          batch.set(docRef, cleanObjectForFirestore(call));
         });
         batch.commit().catch((err) => handleFirestoreError(err, OperationType.WRITE, 'call_records'));
       } else {
@@ -208,7 +218,7 @@ export default function App() {
         const batch = writeBatch(db);
         DEFAULT_PRESEED_SERVICES.forEach((srv) => {
           const docRef = doc(db, 'picklist_services', srv.id);
-          batch.set(docRef, srv);
+          batch.set(docRef, cleanObjectForFirestore(srv));
         });
         batch.commit().catch((err) => handleFirestoreError(err, OperationType.WRITE, 'picklist_services'));
       } else {
@@ -306,10 +316,10 @@ export default function App() {
       role: memberData.role,
       status: memberData.status,
       joinedDate,
-      password: memberData.password,
+      password: memberData.password || '',
     };
 
-    setDoc(doc(db, 'staff_members', id), updatedMember)
+    setDoc(doc(db, 'staff_members', id), cleanObjectForFirestore(updatedMember))
       .then(() => {
         setIsStaffFormOpen(false);
         setEditingMember(null);
@@ -357,14 +367,14 @@ export default function App() {
       clientName: callData.clientName,
       clientNumber: callData.clientNumber,
       callStatus: callData.callStatus,
-      followupDate: callData.followupDate,
-      interestedService: callData.interestedService,
-      loggedBy: callData.loggedBy,
+      followupDate: callData.followupDate || '',
+      interestedService: callData.interestedService || '',
+      loggedBy: callData.loggedBy || '',
       createdDate,
-      notes: callData.notes,
+      notes: callData.notes || '',
     };
 
-    setDoc(doc(db, 'call_records', id), updatedCall)
+    setDoc(doc(db, 'call_records', id), cleanObjectForFirestore(updatedCall))
       .then(() => {
         setIsCallFormOpen(false);
         setEditingCall(null);
@@ -381,7 +391,7 @@ export default function App() {
       status: serviceData.status,
     };
 
-    setDoc(doc(db, 'picklist_services', id), updatedService)
+    setDoc(doc(db, 'picklist_services', id), cleanObjectForFirestore(updatedService))
       .catch((err) => handleFirestoreError(err, OperationType.WRITE, `picklist_services/${id}`));
   };
 
@@ -423,17 +433,18 @@ export default function App() {
       amountPaid: leadData.amountPaid,
       paidBy: leadData.paidBy,
       closedDate: formattedDate,
-      closedBy: originalLogger,
+      closedBy: originalLogger || '',
+      notes: '',
     };
 
     // 2. Mark the corresponding CallRecord as 'Closed' synchronously using a batch
     const batch = writeBatch(db);
-    batch.set(doc(db, 'closed_leads', leadId), newLead);
+    batch.set(doc(db, 'closed_leads', leadId), cleanObjectForFirestore(newLead));
     if (matchingCall) {
-      batch.set(doc(db, 'call_records', leadData.callRecordId), {
+      batch.set(doc(db, 'call_records', leadData.callRecordId), cleanObjectForFirestore({
         ...matchingCall,
         callStatus: 'Closed' as CallStatus,
-      });
+      }));
     }
     batch.commit()
       .catch((err) => handleFirestoreError(err, OperationType.WRITE, 'closed_leads/call_records_batch'));
@@ -467,10 +478,11 @@ export default function App() {
       amountPaid: leadData.amountPaid,
       paidBy: leadData.paidBy,
       closedDate,
-      closedBy: leadData.closedBy || currentUserFullName,
+      closedBy: leadData.closedBy || currentUserFullName || '',
+      notes: leadData.notes || '',
     };
 
-    setDoc(doc(db, 'closed_leads', id), updatedLead)
+    setDoc(doc(db, 'closed_leads', id), cleanObjectForFirestore(updatedLead))
       .catch((err) => handleFirestoreError(err, OperationType.WRITE, `closed_leads/${id}`));
   };
 

@@ -45,6 +45,12 @@ export default function Login({ onLoginSuccess, staffList }: LoginProps) {
       // Check dynamic staffList
       const staffMember = staffList?.find((m) => m.email.trim().toLowerCase() === enteredEmail);
       if (staffMember) {
+        if (staffMember.role === 'Admin' || staffMember.role === 'Administrator') {
+          setError('System generated admin accounts do not have permission to log in. Only the default system administrator can access the portal.');
+          setIsSubmitting(false);
+          return;
+        }
+
         if (staffMember.status === 'Suspended') {
           setError('This account is suspended. Please contact the system administrator.');
           setIsSubmitting(false);
@@ -66,12 +72,6 @@ export default function Login({ onLoginSuccess, staffList }: LoginProps) {
     }, 800);
   };
 
-  const handleFillCredentials = () => {
-    setEmail(defaultAdminEmail);
-    setPassword(defaultAdminPassword);
-    setError('');
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-radial from-slate-50 to-slate-100 p-4 md:p-8 font-sans">
       <div className="w-full max-w-md" id="login-container">
@@ -87,46 +87,6 @@ export default function Login({ onLoginSuccess, staffList }: LoginProps) {
             Please authenticate to manage directory users
           </p>
         </div>
-
-        {/* Info callout for Admin credentials */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="bg-white border border-slate-200 rounded-xl p-4 mb-6 shadow-sm"
-          id="credentials-callout"
-        >
-          <div className="flex items-start gap-3">
-            <ShieldAlert className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5 animate-pulse" />
-            <div className="flex-1">
-              <h3 className="text-xs font-semibold text-slate-800 uppercase tracking-wider mb-2">
-                Administrator Access
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed mb-3">
-                Use the pre-seeded admin credentials below to log into the administrative management console:
-              </p>
-              <div className="bg-slate-50 rounded-lg p-2.5 font-mono text-xs text-slate-700 divide-y divide-slate-200/60 border border-slate-100">
-                <div className="pb-1.5 flex justify-between items-center">
-                  <span>Username: <span className="font-semibold text-slate-900">{defaultAdminEmail}</span></span>
-                </div>
-                <div className="pt-1.5 flex justify-between items-center">
-                  <span>Password: <span className="font-semibold text-slate-900">{defaultAdminPassword}</span></span>
-                </div>
-              </div>
-              <div className="mt-2.5 pt-2 border-t border-slate-150 text-[10.5px] text-slate-500 leading-relaxed">
-                <span>Or log in with any active staff account (e.g. <b>jane.cooper@company.com</b> / <b>password</b> for Admin or <b>cody.fisher@company.com</b> / <b>password</b> for User).</span>
-              </div>
-              <button
-                type="button"
-                onClick={handleFillCredentials}
-                className="mt-3 text-xs text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center transition-colors cursor-pointer"
-                id="btn-auto-fill"
-              >
-                Auto-fill credentials
-              </button>
-            </div>
-          </div>
-        </motion.div>
 
         {/* Login form card */}
         <motion.div
