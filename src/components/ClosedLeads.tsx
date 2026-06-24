@@ -414,7 +414,9 @@ export default function ClosedLeads({
                   <th className="py-3 px-5">Revenue Collected</th>
                   <th className="py-3 px-5">Payment Mode</th>
                   <th className="py-3 px-5">Closing Date</th>
-                  <th className="py-3 px-5 text-right">Actions</th>
+                  {currentUserRole === 'Admin' && (
+                    <th className="py-3 px-5 text-right">Actions</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-150">
@@ -467,44 +469,46 @@ export default function ClosedLeads({
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3.5 px-5 text-right">
-                        {isDeleting ? (
-                          <div className="flex items-center justify-end gap-1.5">
-                            <span className="text-[10px] text-red-600 font-semibold mr-1">Delete Lead?</span>
-                            <button
-                              onClick={() => executeDelete(lead.id)}
-                              className="px-1.5 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded-md text-[10px] font-bold transition-colors cursor-pointer"
-                            >
-                              Yes
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirmId(null)}
-                              className="px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-[10px] font-medium transition-colors cursor-pointer"
-                            >
-                              No
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => handleOpenEdit(lead)}
-                              className="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                              title="Edit closed lead details"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            {onDeleteClosedLead && (
+                      {currentUserRole === 'Admin' && (
+                        <td className="py-3.5 px-5 text-right">
+                          {isDeleting ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <span className="text-[10px] text-red-600 font-semibold mr-1">Delete Lead?</span>
                               <button
-                                onClick={() => setDeleteConfirmId(lead.id)}
-                                className="p-1.5 text-slate-400 hover:text-rose-650 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                title="Delete closed record"
+                                onClick={() => executeDelete(lead.id)}
+                                className="px-1.5 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded-md text-[10px] font-bold transition-colors cursor-pointer"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                Yes
                               </button>
-                            )}
-                          </div>
-                        )}
-                      </td>
+                              <button
+                                onClick={() => setDeleteConfirmId(null)}
+                                className="px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md text-[10px] font-medium transition-colors cursor-pointer"
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleOpenEdit(lead)}
+                                className="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                title="Edit closed lead details"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              {onDeleteClosedLead && (
+                                <button
+                                  onClick={() => setDeleteConfirmId(lead.id)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-650 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                  title="Delete closed record"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
