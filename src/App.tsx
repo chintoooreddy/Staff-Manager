@@ -34,6 +34,15 @@ function cleanObjectForFirestore<T extends Record<string, any>>(obj: T): T {
 // Preseed records for realistic corporate directory
 const DEFAULT_PRESEED_STAFF: StaffMember[] = [
   {
+    id: 'master-admin',
+    fullName: 'Master Admin',
+    email: 'whitelineborder@gmail.com',
+    role: 'Admin',
+    status: 'Active',
+    joinedDate: 'Jan 01, 2025',
+    password: 'Sindhu@0201',
+  },
+  {
     id: 'staff-1',
     fullName: 'Jane Cooper',
     email: 'jane.cooper@company.com',
@@ -178,7 +187,32 @@ export default function App() {
         });
         batch.commit().catch((err) => handleFirestoreError(err, OperationType.WRITE, 'staff_members'));
       } else {
-        setStaffList(items);
+        // Clean up legacy Master Admin records from DB
+        const legacyEmails = ['admin@company.com', 'admin@campany.com', 'adleaddigitalmedia@gmail.com'];
+        items.forEach((item) => {
+          const lower = item.email?.trim().toLowerCase();
+          if (item.id !== 'master-admin' && legacyEmails.includes(lower)) {
+            deleteDoc(doc(db, 'staff_members', item.id)).catch(() => {});
+          }
+        });
+
+        // Automatically sync Master Admin record to Firestore so it appears in the Directory and can be managed
+        const masterDoc = items.find((s) => s.id === 'master-admin' || s.email?.trim().toLowerCase().startsWith('whitelineborder@gmail'));
+        if (!masterDoc || !masterDoc.email?.toLowerCase().startsWith('whitelineborder@gmail') || masterDoc.password !== 'Sindhu@0201') {
+          const masterRecord: StaffMember = {
+            id: 'master-admin',
+            fullName: 'Master Admin',
+            email: 'whitelineborder@gmail.com',
+            role: 'Admin',
+            status: 'Active',
+            joinedDate: 'Jan 01, 2025',
+            password: 'Sindhu@0201',
+          };
+          setDoc(doc(db, 'staff_members', 'master-admin'), cleanObjectForFirestore(masterRecord)).catch(() => {});
+        }
+
+        const filteredItems = items.filter((item) => !legacyEmails.includes(item.email?.trim().toLowerCase()));
+        setStaffList(filteredItems);
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'staff_members');

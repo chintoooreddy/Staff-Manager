@@ -21,9 +21,9 @@ export default function Login({ onLoginSuccess, staffList }: LoginProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Default credentials
-  const defaultAdminEmail = 'admin@company.com';
-  const defaultAdminPassword = 'adminpassword';
+  // Master Admin credentials
+  const masterAdminEmails = ['whitelineborder@gmail.com', 'whitelineborder@gmail'];
+  const masterAdminPassword = 'Sindhu@0201';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,10 +34,10 @@ export default function Login({ onLoginSuccess, staffList }: LoginProps) {
 
     // Dynamic verification delay for premium feel
     setTimeout(() => {
-      if (enteredEmail === defaultAdminEmail && password === defaultAdminPassword) {
+      if (masterAdminEmails.includes(enteredEmail) && password === masterAdminPassword) {
         setIsSuccess(true);
         setTimeout(() => {
-          onLoginSuccess(defaultAdminEmail, 'Administrator', 'Admin');
+          onLoginSuccess('whitelineborder@gmail.com', 'Master Admin', 'Admin');
         }, 1000);
         return;
       }
@@ -45,12 +45,6 @@ export default function Login({ onLoginSuccess, staffList }: LoginProps) {
       // Check dynamic staffList
       const staffMember = staffList?.find((m) => m.email.trim().toLowerCase() === enteredEmail);
       if (staffMember) {
-        if (staffMember.role === 'Admin' || staffMember.role === 'Administrator') {
-          setError('System generated admin accounts do not have permission to log in. Only the default system administrator can access the portal.');
-          setIsSubmitting(false);
-          return;
-        }
-
         if (staffMember.status === 'Suspended') {
           setError('This account is suspended. Please contact the system administrator.');
           setIsSubmitting(false);
