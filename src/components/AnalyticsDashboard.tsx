@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { Users, PhoneCall, Calendar, Bookmark, HeartHandshake, PhoneForwarded, UserCheck, ShieldAlert, Clock, ArrowUpRight, CheckCircle2, User, DollarSign, Coins, TrendingUp } from 'lucide-react';
 import { StaffMember, CallRecord, CallStatus, ClosedLead } from '../types';
+import Pagination from './Pagination';
 
 interface AnalyticsDashboardProps {
   currentEmail: string;
@@ -45,6 +46,13 @@ export default function AnalyticsDashboard({ currentEmail, staffList, callList, 
     .map((member) => member.fullName);
   
   const allLoggersList = ['Administrator', ...activeStaffLoggers];
+
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+  const totalItems = allLoggersList.length;
+  const totalPages = Math.ceil(totalItems / pageSize) || 1;
+  const safePage = Math.min(page, totalPages);
+  const paginatedLoggers = allLoggersList.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   // Helper to calculate daily metrics for a specific logger name
   const getLoggerDailyStats = (loggerName: string) => {
@@ -336,7 +344,7 @@ export default function AnalyticsDashboard({ currentEmail, staffList, callList, 
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-150 text-xs">
-                      {allLoggersList.map((loggerName) => {
+                      {paginatedLoggers.map((loggerName) => {
                         const stats = getLoggerDailyStats(loggerName);
                         const isSelf = loggerName === 'Administrator';
 
@@ -400,6 +408,16 @@ export default function AnalyticsDashboard({ currentEmail, staffList, callList, 
                     </tbody>
                   </table>
                 </div>
+
+                <Pagination
+                  currentPage={safePage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  itemsPerPage={pageSize}
+                  onPageChange={setPage}
+                  onItemsPerPageChange={setPageSize}
+                  itemLabel="staff agents"
+                />
 
                 {/* Quick Summary Footer banner */}
                 <div className="bg-slate-50/60 px-4 py-2 border-t border-slate-150 text-[10px] text-slate-500 flex items-center gap-1.5 font-medium">

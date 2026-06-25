@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Plus, Edit, Check, X, Search, Briefcase, Trash2, CheckCircle, AlertCircle, RefreshCw, Eye, EyeOff } from 'lucide-react';
 import { ServiceItem } from '../types';
+import Pagination from './Pagination';
 
 interface PicklistManagementProps {
   services: ServiceItem[];
@@ -87,6 +88,13 @@ export default function PicklistManagement({ services, onSaveService, onDeleteSe
     const matchesStatus = statusFilter === 'All' || service.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(15);
+  const totalItems = filteredServices.length;
+  const totalPages = Math.ceil(totalItems / pageSize) || 1;
+  const safePage = Math.min(page, totalPages);
+  const paginatedServices = filteredServices.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const activeCount = services.filter((s) => s.status === 'Active').length;
   const inactiveCount = services.filter((s) => s.status === 'Inactive').length;
@@ -225,7 +233,7 @@ export default function PicklistManagement({ services, onSaveService, onDeleteSe
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-150 text-xs">
-                    {filteredServices.map((service, idx) => (
+                    {paginatedServices.map((service, idx) => (
                       <tr key={service.id} className="hover:bg-slate-50/40 transition-colors">
                         {/* ID */}
                         <td className="py-3 px-5 text-slate-400 font-mono">
@@ -282,6 +290,15 @@ export default function PicklistManagement({ services, onSaveService, onDeleteSe
                 </table>
               </div>
             )}
+            <Pagination
+              currentPage={safePage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              itemsPerPage={pageSize}
+              onPageChange={setPage}
+              onItemsPerPageChange={setPageSize}
+              itemLabel="services"
+            />
           </div>
         </div>
 

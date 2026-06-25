@@ -10,6 +10,7 @@ import {
   HeartHandshake, PhoneCall, CheckCircle2, RefreshCw, PhoneForwarded, 
   MessageSquare, Download, X, AlertCircle, FileSpreadsheet, Save, ChevronDown, Clock, UserCheck
 } from 'lucide-react';
+import Pagination from './Pagination';
 import { CallRecord, CallStatus, StaffMember, ServiceItem } from '../types';
 
 interface CallManagementProps {
@@ -75,6 +76,12 @@ export default function CallManagement({
   const [followupFromDate, setFollowupFromDate] = useState<string>(getLocalTodayDateString());
   const [followupToDate, setFollowupToDate] = useState<string>(getLocalTodayDateString());
   const [followupViewMode, setFollowupViewMode] = useState<'custom_range' | 'all'>('custom_range');
+
+  // Pagination states
+  const [dailyPage, setDailyPage] = useState<number>(1);
+  const [dailyPageSize, setDailyPageSize] = useState<number>(25);
+  const [followupPage, setFollowupPage] = useState<number>(1);
+  const [followupPageSize, setFollowupPageSize] = useState<number>(12);
 
   // Follow-up Quick-Update state
   const [updatingFollowupRecord, setUpdatingFollowupRecord] = useState<CallRecord | null>(null);
@@ -368,6 +375,16 @@ export default function CallManagement({
     if (followupToDate && call.followupDate > followupToDate) return false;
     return true;
   });
+
+  const dailyTotalItems = filteredCalls.length;
+  const dailyTotalPages = Math.ceil(dailyTotalItems / dailyPageSize) || 1;
+  const safeDailyPage = Math.min(dailyPage, dailyTotalPages);
+  const paginatedDailyCalls = filteredCalls.slice((safeDailyPage - 1) * dailyPageSize, safeDailyPage * dailyPageSize);
+
+  const followupTotalItems = followUpCallsFiltered.length;
+  const followupTotalPages = Math.ceil(followupTotalItems / followupPageSize) || 1;
+  const safeFollowupPage = Math.min(followupPage, followupTotalPages);
+  const paginatedFollowupCalls = followUpCallsFiltered.slice((safeFollowupPage - 1) * followupPageSize, safeFollowupPage * followupPageSize);
 
   const getStatusBadgeStyle = (status: CallStatus) => {
     switch (status) {
@@ -727,7 +744,7 @@ export default function CallManagement({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-150">
-                      {filteredCalls.map((call) => {
+                      {paginatedDailyCalls.map((call) => {
                         const isDeleting = deleteConfirmId === call.id;
                         const hasFollowup = call.callStatus === 'Interested' || call.callStatus === 'Call Back';
                         const statusBadgeStyle = getStatusBadgeStyle(call.callStatus);
@@ -844,6 +861,16 @@ export default function CallManagement({
                   </span>
                 </div>
               )}
+
+              <Pagination
+                currentPage={safeDailyPage}
+                totalPages={dailyTotalPages}
+                totalItems={dailyTotalItems}
+                itemsPerPage={dailyPageSize}
+                onPageChange={setDailyPage}
+                onItemsPerPageChange={setDailyPageSize}
+                itemLabel="call logs"
+              />
             </div>
           </motion.div>
         ) : (
@@ -955,7 +982,7 @@ export default function CallManagement({
                   )}
                 </div>
               ) : (
-                followUpCallsFiltered.map((call) => {
+                paginatedFollowupCalls.map((call) => {
                   const isToday = call.followupDate === getLocalTodayDateString();
                   return (
                     <div
@@ -1049,6 +1076,19 @@ export default function CallManagement({
                   );
                 })
               )}
+            </div>
+
+            <div className="bg-white border border-slate-200/85 rounded-2xl overflow-hidden shadow-xs">
+              <Pagination
+                currentPage={safeFollowupPage}
+                totalPages={followupTotalPages}
+                totalItems={followupTotalItems}
+                itemsPerPage={followupPageSize}
+                onPageChange={setFollowupPage}
+                onItemsPerPageChange={setFollowupPageSize}
+                pageSizeOptions={[6, 12, 24, 48]}
+                itemLabel="follow-ups"
+              />
             </div>
           </motion.div>
         )}

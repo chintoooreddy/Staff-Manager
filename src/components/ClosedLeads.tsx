@@ -10,6 +10,7 @@ import {
   AlertCircle, ChevronDown, CheckCircle2, DollarSign, Calendar, HeartHandshake, User, Phone, UserCheck, Download
 } from 'lucide-react';
 import { ClosedLead, ServiceItem, StaffMember } from '../types';
+import Pagination from './Pagination';
 
 interface ClosedLeadsProps {
   closedLeads: ClosedLead[];
@@ -160,6 +161,13 @@ export default function ClosedLeads({
 
     return matchesSearch && matchesService && matchesPayment && matchesDateRange;
   });
+
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(25);
+  const totalItems = filteredLeads.length;
+  const totalPages = Math.ceil(totalItems / pageSize) || 1;
+  const safePage = Math.min(page, totalPages);
+  const paginatedLeads = filteredLeads.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const escapeCSVCell = (val: string): string => {
     if (val === null || val === undefined) return '';
@@ -530,7 +538,7 @@ export default function ClosedLeads({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-150">
-                {filteredLeads.map((lead) => {
+                {paginatedLeads.map((lead) => {
                   const isDeleting = deleteConfirmId === lead.id;
                   return (
                     <tr key={lead.id} className="hover:bg-slate-50/50 transition-colors" id={`closed-lead-row-${lead.id}`}>
@@ -625,6 +633,16 @@ export default function ClosedLeads({
               </tbody>
             </table>
           )}
+
+          <Pagination
+            currentPage={safePage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={pageSize}
+            onPageChange={setPage}
+            onItemsPerPageChange={setPageSize}
+            itemLabel="closed leads"
+          />
         </div>
       </div>
 

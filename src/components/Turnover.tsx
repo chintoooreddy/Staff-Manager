@@ -10,6 +10,7 @@ import {
   ArrowUpRight, Calendar, Landmark, Percent, ChevronRight, Download
 } from 'lucide-react';
 import { ClosedLead, StaffMember } from '../types';
+import Pagination from './Pagination';
 
 interface TurnoverProps {
   closedLeads: ClosedLead[];
@@ -87,6 +88,13 @@ export default function Turnover({ closedLeads, staffList }: TurnoverProps) {
     emp.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.role.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(25);
+  const totalItems = filteredEmployees.length;
+  const totalPages = Math.ceil(totalItems / pageSize) || 1;
+  const safePage = Math.min(page, totalPages);
+  const paginatedEmployees = filteredEmployees.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   // Find Top Performer of this month
   const topPerformer = sortedEmployees.find(e => e.monthTurnover > 0);
@@ -251,7 +259,7 @@ export default function Turnover({ closedLeads, staffList }: TurnoverProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-150">
-                {filteredEmployees.map((emp) => {
+                {paginatedEmployees.map((emp) => {
                   // Compute share % of current month
                   const sharePercent = overallMonthTurnover > 0 
                     ? Math.round((emp.monthTurnover / overallMonthTurnover) * 100) 
@@ -331,6 +339,16 @@ export default function Turnover({ closedLeads, staffList }: TurnoverProps) {
               </tbody>
             </table>
           )}
+
+          <Pagination
+            currentPage={safePage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={pageSize}
+            onPageChange={setPage}
+            onItemsPerPageChange={setPageSize}
+            itemLabel="employees"
+          />
         </div>
       </div>
     </div>

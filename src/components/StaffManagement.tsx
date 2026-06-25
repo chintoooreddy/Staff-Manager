@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { Search, SlidersHorizontal, UserMinus, Edit2, LogOut, Lock, Clock, Check, ShieldCheck, Mail, Briefcase } from 'lucide-react';
 import { StaffMember, StaffFilterStatus } from '../types';
 import DashboardStats from './DashboardStats';
+import Pagination from './Pagination';
 
 interface StaffManagementProps {
   currentEmail: string;
@@ -67,6 +68,13 @@ export default function StaffManagement({
 
     return matchesSearch && matchesStatus && matchesRole;
   });
+
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(25);
+  const totalItems = filteredStaff.length;
+  const totalPages = Math.ceil(totalItems / pageSize) || 1;
+  const safePage = Math.min(page, totalPages);
+  const paginatedStaff = filteredStaff.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   return (
     <div id="staff-dashboard-root">
@@ -189,7 +197,7 @@ export default function StaffManagement({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-150">
-                  {filteredStaff.map((member) => {
+                  {paginatedStaff.map((member) => {
                     const isDeleting = deleteConfirmId === member.id;
                     const avatarStyle = getAvatarStyle(member.fullName);
 
@@ -300,6 +308,16 @@ export default function StaffManagement({
               </table>
             )}
           </div>
+
+          <Pagination
+            currentPage={safePage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={pageSize}
+            onPageChange={setPage}
+            onItemsPerPageChange={setPageSize}
+            itemLabel="staff members"
+          />
 
           {/* Database Footer Status Lock */}
           <div className="px-5 py-3 border-t border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-2" id="database-footer-status">
