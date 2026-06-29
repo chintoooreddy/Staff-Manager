@@ -77,6 +77,7 @@ export interface SentEmail {
   status: 'Delivered' | 'Failed';
   resetLink?: string;
   resetToken?: string;
+  error?: string;
 }
 
 

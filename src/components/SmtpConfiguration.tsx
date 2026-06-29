@@ -448,10 +448,17 @@ export default function SmtpConfiguration() {
                     <td className="py-3.5 px-4 truncate max-w-xs">{item.subject}</td>
                     <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap">{item.sentAt}</td>
                     <td className="py-3.5 px-4">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200/60">
-                        <CheckCircle2 className="w-3 h-3" />
-                        Delivered
-                      </span>
+                      {item.status === 'Failed' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold border border-red-200/60">
+                          <AlertCircle className="w-3 h-3" />
+                          Failed
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200/60">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Delivered
+                        </span>
+                      )}
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       {(item.resetLink || item.resetToken || item.subject.includes('Password Reset')) && (
@@ -504,8 +511,16 @@ export default function SmtpConfiguration() {
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 font-mono text-slate-700 whitespace-pre-wrap leading-relaxed text-[11px]">
                 {selectedEmailModal.body}
               </div>
+              {selectedEmailModal.status === 'Failed' && selectedEmailModal.error && (
+                <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-800 text-[11px] leading-relaxed font-mono">
+                  <p className="font-bold font-sans mb-1 text-red-900">Transmission Error Details:</p>
+                  <p className="break-words">{selectedEmailModal.error}</p>
+                </div>
+              )}
               <div className="pt-2 flex items-center justify-between">
-                <span className="text-[11px] text-slate-400">Delivered via SMTP ({config.host})</span>
+                <span className="text-[11px] text-slate-400">
+                  {selectedEmailModal.status === 'Failed' ? 'Delivery Attempted' : 'Delivered'} via SMTP ({config.host})
+                </span>
               </div>
             </div>
           </div>

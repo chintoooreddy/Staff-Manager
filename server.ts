@@ -35,8 +35,31 @@ async function startServer() {
       if (!smtp || !smtp.host || !smtp.senderEmail) {
         return res.status(400).json({ success: false, error: "Missing SMTP host or sender email" });
       }
-      if (!smtp.password) {
-        return res.status(400).json({ success: false, error: "Missing SMTP Password. For Gmail, you must enter your 16-character Google App Password." });
+
+      let password = smtp.password || "";
+      
+      // If the password is the masked placeholder, try to resolve the actual password
+      if (password === "••••••••••••") {
+        // First try Env variable
+        password = process.env.SMTP_PASSWORD || "";
+        // Next try Firestore
+        if (!password) {
+          try {
+            const smtpSnap = await getDoc(doc(serverDb, 'settings', 'smtp_config')).catch(() => null);
+            if (smtpSnap && smtpSnap.exists()) {
+              const dbSmtp = smtpSnap.data();
+              if (dbSmtp.password && dbSmtp.password !== "••••••••••••") {
+                password = dbSmtp.password;
+              }
+            }
+          } catch (dbErr) {
+            console.warn("Could not load SMTP password from DB for testing:", dbErr);
+          }
+        }
+      }
+
+      if (!password || password === "••••••••••••") {
+        return res.status(400).json({ success: false, error: "Missing SMTP Password. Please enter your password or App Password." });
       }
 
       const secure = smtp.encryption === 'SSL' || smtp.port === 465;
@@ -46,7 +69,7 @@ async function startServer() {
         secure: secure,
         auth: {
           user: smtp.username || smtp.senderEmail,
-          pass: smtp.password,
+          pass: password,
         },
         tls: {
           rejectUnauthorized: false
@@ -75,17 +98,54 @@ async function startServer() {
         return res.status(400).json({ success: false, error: "Missing recipient, subject, or email body" });
       }
 
-      // Default SMTP parameters if none provided
-      const host = smtp?.host || "smtp.gmail.com";
-      const port = Number(smtp?.port) || 587;
-      const senderEmail = smtp?.senderEmail || "whitelineborder@gmail.com";
-      const senderName = smtp?.senderName || "Portal Security Team";
-      const username = smtp?.username || senderEmail;
-      const password = smtp?.password || "";
-      const encryption = smtp?.encryption || "TLS";
+      // 1. Start with environment variables if present (highest priority for Cloud Run / hosting environment)
+      let host = process.env.SMTP_HOST || "smtp.gmail.com";
+      let port = Number(process.env.SMTP_PORT) || 587;
+      let senderEmail = process.env.SMTP_SENDER_EMAIL || "whitelineborder@gmail.com";
+      let senderName = process.env.SMTP_SENDER_NAME || "Portal Security Team";
+      let username = process.env.SMTP_USERNAME || senderEmail;
+      let password = process.env.SMTP_PASSWORD || "";
+      let encryption = process.env.SMTP_ENCRYPTION || "TLS";
 
+      // 2. If environment variables are missing password, check database settings on server-side
       if (!password) {
-        return res.status(400).json({ success: false, error: "SMTP Password not configured. Master Admin must set an App Password in Admin Settings -> SMTP Configuration." });
+        try {
+          const smtpSnap = await getDoc(doc(serverDb, 'settings', 'smtp_config')).catch(() => null);
+          if (smtpSnap && smtpSnap.exists()) {
+            const dbSmtp = smtpSnap.data();
+            if (dbSmtp.password && dbSmtp.password !== "••••••••••••") {
+              host = dbSmtp.host || host;
+              port = Number(dbSmtp.port) || port;
+              senderEmail = dbSmtp.senderEmail || senderEmail;
+              senderName = dbSmtp.senderName || senderName;
+              username = dbSmtp.username || username;
+              password = dbSmtp.password;
+              encryption = dbSmtp.encryption || encryption;
+            }
+          }
+        } catch (dbErr) {
+          console.warn("Could not load SMTP config from DB:", dbErr);
+        }
+      }
+
+      // 3. If the client passed an explicit configuration with a real password, let it take precedence
+      if (smtp) {
+        host = smtp.host || host;
+        port = Number(smtp.port) || port;
+        senderEmail = smtp.senderEmail || senderEmail;
+        senderName = smtp.senderName || senderName;
+        username = smtp.username || username;
+        if (smtp.password && smtp.password !== "••••••••••••") {
+          password = smtp.password;
+        }
+        encryption = smtp.encryption || encryption;
+      }
+
+      if (!password || password === "••••••••••••") {
+        return res.status(400).json({
+          success: false,
+          error: "SMTP Password not configured. Please set SMTP_PASSWORD in your environment variables or configure it in Admin Settings -> SMTP Configuration."
+        });
       }
 
       const secure = encryption === 'SSL' || port === 465;

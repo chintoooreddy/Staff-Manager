@@ -22,6 +22,8 @@ export default function Login({ onLoginSuccess, staffList }: LoginProps) {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [smtpDispatchStatus, setSmtpDispatchStatus] = useState<'Delivered' | 'Failed'>('Delivered');
+  const [smtpDispatchError, setSmtpDispatchError] = useState('');
 
   // View modes for login & password reset flow
   const [viewMode, setViewMode] = useState<'login' | 'forgot' | 'reset_success' | 'reset_form'>('login');
@@ -121,11 +123,12 @@ export default function Login({ onLoginSuccess, staffList }: LoginProps) {
       const bodyText = `Hello ${recipientName},\n\nWe received a request to reset your access password for the Staff Portal.\n\nYour Recovery Token Code: ${token}\n\nPlease enter this token code on the portal verification screen to set your new password.\n\nThis token will expire in 24 hours. If you did not initiate this request, no further action is required.`;
 
       let deliveryStatus: 'Delivered' | 'Failed' = 'Delivered';
+      let smtpErrorMsg = '';
 
       // Actually send email via Express backend route if password/credentials exist
       if (smtpConfig.host && smtpConfig.senderEmail) {
         try {
-          await fetch('/api/send-email', {
+          const res = await fetch('/api/send-email', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -135,10 +138,20 @@ export default function Login({ onLoginSuccess, staffList }: LoginProps) {
               body: bodyText,
             }),
           });
-        } catch (mailErr) {
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            deliveryStatus = 'Failed';
+            smtpErrorMsg = data.error || 'SMTP Handshake Rejected';
+          }
+        } catch (mailErr: any) {
+          deliveryStatus = 'Failed';
+          smtpErrorMsg = mailErr?.message || 'Network error during SMTP dispatch';
           console.warn('SMTP transmission note:', mailErr);
         }
       }
+
+      setSmtpDispatchStatus(deliveryStatus);
+      setSmtpDispatchError(smtpErrorMsg);
 
       const emailRecord: any = {
         id: `email_${Date.now()}`,
@@ -148,6 +161,7 @@ export default function Login({ onLoginSuccess, staffList }: LoginProps) {
         sentAt: new Date().toLocaleString(),
         status: deliveryStatus,
         resetToken: token,
+        ...(smtpErrorMsg ? { error: smtpErrorMsg } : {}),
       };
 
       // Save to localStorage logs immediately
@@ -461,16 +475,37 @@ export default function Login({ onLoginSuccess, staffList }: LoginProps) {
               
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-left text-xs space-y-3">
                 <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
-                  <span className="text-[10px] uppercase font-bold text-slate-700 tracking-wider flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>SMTP Delivery Status: Delivered</span>
+                  <span className="text-[10px] uppercase font-bold tracking-wider flex items-center gap-1.5">
+                    {smtpDispatchStatus === 'Failed' ? (
+                      <>
+                        <ShieldAlert className="w-3.5 h-3.5 text-red-600 animate-pulse" />
+                        <span className="text-red-700">SMTP Delivery Status: Failed</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-emerald-700">SMTP Delivery Status: Delivered</span>
+                      </>
+                    )}
                   </span>
-                  <span className="text-[10px] font-mono text-slate-400">Outbox Verified</span>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    {smtpDispatchStatus === 'Failed' ? 'Dispatch Blocked' : 'Outbox Verified'}
+                  </span>
                 </div>
 
-                <p className="text-slate-600 text-[11px] leading-relaxed">
-                  Please check your inbox (and spam folder) for your secure recovery token code. Enter the token code below to verify access:
-                </p>
+                {smtpDispatchStatus === 'Failed' ? (
+                  <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-red-800 text-[11px] leading-relaxed space-y-1">
+                    <p className="font-bold">Gateway Error Details:</p>
+                    <p className="font-mono text-slate-700 text-[10px] break-words">{smtpDispatchError || 'Authentication failed or SMTP configuration is invalid.'}</p>
+                    <p className="pt-1 text-slate-500 font-sans text-[10.5px]">
+                      (Note: You can inspect the newly generated recovery token in the Admin SMTP outbox, or correct your credentials in SMTP settings.)
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-slate-600 text-[11px] leading-relaxed">
+                    Please check your inbox (and spam folder) for your secure recovery token code. Enter the token code below to verify access:
+                  </p>
+                )}
 
                 <div className="pt-2 border-t border-slate-200/80 space-y-2">
                   <label className="block text-[11px] font-semibold text-slate-700">
