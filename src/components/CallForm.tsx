@@ -214,7 +214,7 @@ export default function CallForm({ onClose, onSave, editingCall, staffList, curr
                   Call Status <span className="text-rose-500">*</span>
                 </label>
                 <div className="grid grid-cols-2 gap-2" id="status-selection-box">
-                  {(['Interested', 'Call Back', 'Not Answered', 'Busy', 'Not Reachable'] as CallStatus[]).map((status) => {
+                  {(['Interested', 'Call Back', 'Not Answered', 'Busy', 'Not Reachable', 'Not Interested', 'Rejected'] as CallStatus[]).map((status) => {
                     let activeStyle = '';
                     switch (status) {
                       case 'Interested':
@@ -231,6 +231,12 @@ export default function CallForm({ onClose, onSave, editingCall, staffList, curr
                         break;
                       case 'Not Reachable':
                         activeStyle = 'bg-rose-50 text-rose-850 border-rose-400';
+                        break;
+                      case 'Not Interested':
+                        activeStyle = 'bg-slate-100 text-slate-700 border-slate-400';
+                        break;
+                      case 'Rejected':
+                        activeStyle = 'bg-red-50 text-red-800 border-red-400';
                         break;
                     }
 

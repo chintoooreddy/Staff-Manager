@@ -2,6 +2,9 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import nodemailer from "nodemailer";
+import cron from "node-cron";
+import { generateAndSendDailyReport, serverDb } from "./server/dailyReport";
+import { doc, getDoc, setDoc, collection, getDocs, query, limit } from "firebase/firestore";
 
 function formatSmtpError(err: any): string {
   const msg = err?.message || "SMTP transmission failure";
@@ -121,6 +124,46 @@ async function startServer() {
         success: false,
         error: formatSmtpError(err)
       });
+    }
+  });
+
+  // Trigger Daily Telecalling Report (Manual or Test send)
+  app.post("/api/send-daily-report", async (req, res) => {
+    try {
+      const { testEmail, force } = req.body;
+      const result = await generateAndSendDailyReport({
+        force: force !== undefined ? force : false,
+        testRecipientEmail: testEmail
+      });
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (err: any) {
+      console.error("Manual report trigger error:", err);
+      res.status(500).json({ success: false, message: err.message || "Server Error", error: err.message });
+    }
+  });
+
+  // Cron Scheduler for Daily Telecalling Reports (runs every minute)
+  cron.schedule("* * * * *", async () => {
+    try {
+      const nowIst = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+      const currentHhMm = `${String(nowIst.getHours()).padStart(2, '0')}:${String(nowIst.getMinutes()).padStart(2, '0')}`;
+      
+      const configSnap = await getDoc(doc(serverDb, "settings", "daily_email_config")).catch(() => null);
+      if (configSnap && configSnap.exists()) {
+        const config = configSnap.data();
+        if (config.enabled && config.scheduledTime) {
+          // If current IST time matches or is past scheduledTime
+          if (currentHhMm >= config.scheduledTime) {
+            await generateAndSendDailyReport({ force: false });
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error in daily report cron check:", err);
     }
   });
 

@@ -21,7 +21,7 @@ export interface DashboardMetrics {
   suspended: number;
 }
 
-export type CallStatus = 'Interested' | 'Call Back' | 'Not Answered' | 'Busy' | 'Not Reachable' | 'Closed';
+export type CallStatus = 'Interested' | 'Call Back' | 'Not Answered' | 'Busy' | 'Not Reachable' | 'Not Interested' | 'Closed' | 'Rejected';
 
 export interface CallRecord {
   id: string;

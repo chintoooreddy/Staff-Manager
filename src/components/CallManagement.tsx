@@ -396,6 +396,11 @@ export default function CallManagement({
         return 'bg-amber-50 text-amber-700 border-amber-200';
       case 'Not Reachable':
         return 'bg-rose-50 text-rose-700 border-rose-200';
+      case 'Closed':
+        return 'bg-purple-50 text-purple-700 border-purple-200';
+      case 'Rejected':
+      case 'Not Interested':
+        return 'bg-red-50 text-red-700 border-red-200';
       case 'Not Answered':
       default:
         return 'bg-slate-100 text-slate-600 border-slate-200';
@@ -634,6 +639,9 @@ export default function CallManagement({
                     <option value="Not Answered">Not Answered</option>
                     <option value="Busy">Busy</option>
                     <option value="Not Reachable">Not Reachable</option>
+                    <option value="Not Interested">Not Interested</option>
+                    <option value="Closed">Closed</option>
+                    <option value="Rejected">Rejected</option>
                   </select>
 
                   <select
@@ -1158,6 +1166,9 @@ export default function CallManagement({
                       <option value="Not Answered">Not Answered</option>
                       <option value="Busy">Busy</option>
                       <option value="Not Reachable">Not Reachable</option>
+                      <option value="Not Interested">Not Interested</option>
+                      <option value="Closed">Closed</option>
+                      <option value="Rejected">Rejected</option>
                     </select>
                   </div>
 

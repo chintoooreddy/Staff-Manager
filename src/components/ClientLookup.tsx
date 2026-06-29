@@ -459,6 +459,8 @@ export default function ClientLookup({
                           'Busy': 'bg-rose-100 text-rose-800 border-rose-200',
                           'Not Answered': 'bg-slate-100 text-slate-800 border-slate-200',
                           'Not Reachable': 'bg-slate-100 text-slate-800 border-slate-200',
+                          'Not Interested': 'bg-red-100 text-red-800 border-red-200',
+                          'Rejected': 'bg-red-100 text-red-800 border-red-200',
                         };
                         const badgeStyle = statusColors[call.callStatus] || 'bg-slate-100 text-slate-800 border-slate-200';
                         return (
@@ -1008,7 +1010,9 @@ export default function ClientLookup({
                       <option value="Not Answered">Not Answered</option>
                       <option value="Busy">Busy</option>
                       <option value="Not Reachable">Not Reachable</option>
+                      <option value="Not Interested">Not Interested</option>
                       <option value="Closed">Closed</option>
+                      <option value="Rejected">Rejected</option>
                     </select>
                   </div>
 
