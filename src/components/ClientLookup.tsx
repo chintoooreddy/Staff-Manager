@@ -25,7 +25,7 @@ import {
   DollarSign,
   Layers
 } from 'lucide-react';
-import { CallRecord, ClosedLead, ServiceItem } from '../types';
+import { CallRecord, ClosedLead, ServiceItem, CallStatus } from '../types';
 
 interface ClientLookupProps {
   callList: CallRecord[];
@@ -42,6 +42,7 @@ interface ClientLookupProps {
     panelUsername?: string;
     panelPassword?: string;
   }) => void;
+  onSaveCall?: (callData: Omit<CallRecord, 'id' | 'createdDate'> & { id?: string }) => void;
   currentUserRole: string;
   currentUserFullName: string;
 }
@@ -51,6 +52,7 @@ export default function ClientLookup({
   closedLeads,
   services,
   onCloseLead,
+  onSaveCall,
   currentUserRole,
   currentUserFullName,
 }: ClientLookupProps) {
@@ -73,6 +75,14 @@ export default function ClientLookup({
 
   // Credentials viewing popup state
   const [viewingPanelOrder, setViewingPanelOrder] = useState<ClosedLead | null>(null);
+
+  // Existing Client Follow-up modal state
+  const [isFollowupModalOpen, setIsFollowupModalOpen] = useState<boolean>(false);
+  const [followupStatus, setFollowupStatus] = useState<CallStatus>('Call Back');
+  const [followupDateInput, setFollowupDateInput] = useState<string>('');
+  const [followupService, setFollowupService] = useState<string>('');
+  const [followupNotes, setFollowupNotes] = useState<string>('');
+  const [followupError, setFollowupError] = useState<string>('');
 
   // Helper to clean mobile numbers for fuzzy comparison
   const cleanNumber = (num: string) => (num || '').replace(/[\s\-\(\)\+]/g, '').toLowerCase();
@@ -114,6 +124,12 @@ export default function ClientLookup({
   // Sort previous purchase orders chronologically (oldest to newest or newest to oldest)
   // We sort latest first (newest at the top)
   const sortedOrders = [...matchingOrders].sort((a, b) => {
+    const timeA = a.id ? Number(a.id.replace(/\D/g, '').substring(0, 13)) || 0 : 0;
+    const timeB = b.id ? Number(b.id.replace(/\D/g, '').substring(0, 13)) || 0 : 0;
+    return timeB - timeA;
+  });
+
+  const sortedCalls = [...matchingCalls].sort((a, b) => {
     const timeA = a.id ? Number(a.id.replace(/\D/g, '').substring(0, 13)) || 0 : 0;
     const timeB = b.id ? Number(b.id.replace(/\D/g, '').substring(0, 13)) || 0 : 0;
     return timeB - timeA;
@@ -166,6 +182,48 @@ export default function ClientLookup({
     });
 
     setIsPurchaseModalOpen(false);
+  };
+
+  // Open Follow-up Modal
+  const handleOpenFollowupModal = () => {
+    const activeServices = services.filter((s) => s.status === 'Active');
+    setFollowupStatus('Call Back');
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    setFollowupDateInput(`${yyyy}-${mm}-${dd}`);
+    setFollowupService(initialInterest !== 'Direct Client' && initialInterest !== 'Direct' ? initialInterest : activeServices[0]?.name || '');
+    setFollowupNotes('');
+    setFollowupError('');
+    setIsFollowupModalOpen(true);
+  };
+
+  // Execute Follow-up Save
+  const handleSaveFollowup = () => {
+    if (!onSaveCall) return;
+    const needsDate = followupStatus === 'Interested' || followupStatus === 'Call Back';
+    if (needsDate && !followupDateInput) {
+      setFollowupError('Please specify a valid follow-up date.');
+      return;
+    }
+    const needsService = followupStatus === 'Interested';
+    if (needsService && !followupService) {
+      setFollowupError('Please select an interested service.');
+      return;
+    }
+
+    onSaveCall({
+      clientName: clientName,
+      clientNumber: clientNumber,
+      callStatus: followupStatus,
+      followupDate: needsDate ? followupDateInput : undefined,
+      interestedService: needsService ? followupService : (initialInterest !== 'Direct Client' && initialInterest !== 'Direct' ? initialInterest : undefined),
+      loggedBy: currentUserFullName || 'Account Manager',
+      notes: followupNotes.trim() ? followupNotes.trim() : `Existing client follow-up logged from Client Lookup.`,
+    });
+
+    setIsFollowupModalOpen(false);
   };
 
   return (
@@ -328,20 +386,127 @@ export default function ClientLookup({
               </div>
 
               {/* Action Toolbar */}
-              <div className="px-6 py-4 bg-white border-t border-slate-200/80 flex items-center justify-between">
+              <div className="px-6 py-4 bg-white border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="text-xs text-slate-500">
                   Initial Service Interest: <span className="font-semibold text-slate-800">{initialInterest}</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleOpenPurchaseModal}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/15 flex items-center gap-2 cursor-pointer transition-all"
-                  id="btn-create-new-purchase-order"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Create New Service Purchase Order</span>
-                </button>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleOpenFollowupModal}
+                    className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-md shadow-slate-900/15 flex items-center gap-2 cursor-pointer transition-all"
+                    id="btn-existing-client-followup"
+                  >
+                    <Phone className="w-4 h-4 text-emerald-400" />
+                    <span>Existing Client Follow-up</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenPurchaseModal}
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/15 flex items-center gap-2 cursor-pointer transition-all"
+                    id="btn-create-new-purchase-order"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Create New Service Purchase Order</span>
+                  </button>
+                </div>
               </div>
+            </div>
+
+            {/* Chronological Outbound Call Logs Section */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/40">
+                <div className="flex items-center gap-2.5">
+                  <Phone className="w-4.5 h-4.5 text-slate-700" />
+                  <h3 className="text-sm font-bold text-slate-900">Chronological Outbound Call Logs & Touchpoints</h3>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-mono font-bold">
+                    {sortedCalls.length}
+                  </span>
+                </div>
+                <span className="text-[11px] text-slate-400">Ordered newest to oldest</span>
+              </div>
+
+              {sortedCalls.length === 0 ? (
+                <div className="p-12 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                    <Phone className="w-6 h-6" />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-800">No Call Records Found</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                    No outbound call logs were registered for this mobile number.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                        <th className="py-3.5 px-6">Call ID / Ref</th>
+                        <th className="py-3.5 px-5">Logged Date</th>
+                        <th className="py-3.5 px-5">Call Status</th>
+                        <th className="py-3.5 px-5">Interested Service</th>
+                        <th className="py-3.5 px-5">Follow-up Date</th>
+                        <th className="py-3.5 px-5">Logged By</th>
+                        <th className="py-3.5 px-6">Staff Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                      {sortedCalls.map((call) => {
+                        const statusColors: Record<string, string> = {
+                          'Interested': 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                          'Call Back': 'bg-amber-100 text-amber-800 border-amber-200',
+                          'Closed': 'bg-indigo-100 text-indigo-800 border-indigo-200',
+                          'Busy': 'bg-rose-100 text-rose-800 border-rose-200',
+                          'Not Answered': 'bg-slate-100 text-slate-800 border-slate-200',
+                          'Not Reachable': 'bg-slate-100 text-slate-800 border-slate-200',
+                        };
+                        const badgeStyle = statusColors[call.callStatus] || 'bg-slate-100 text-slate-800 border-slate-200';
+                        return (
+                          <tr key={call.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="py-4 px-6 font-mono font-bold text-slate-900">
+                              #{call.id.replace('call-', '').substring(0, 10)}
+                            </td>
+                            <td className="py-4 px-5 text-slate-600">
+                              <div className="flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <span>{call.createdDate}</span>
+                              </div>
+                            </td>
+                            <td className="py-4 px-5">
+                              <span className={`px-2.5 py-1 rounded-md border font-bold text-xs ${badgeStyle}`}>
+                                {call.callStatus}
+                              </span>
+                            </td>
+                            <td className="py-4 px-5 font-semibold text-slate-800">
+                              {call.interestedService || 'General Inquiry'}
+                            </td>
+                            <td className="py-4 px-5 font-mono text-slate-600">
+                              {call.followupDate ? (
+                                <span className="flex items-center gap-1 text-amber-700 font-semibold">
+                                  <Calendar className="w-3 h-3" />
+                                  <span>{call.followupDate}</span>
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 italic">None</span>
+                              )}
+                            </td>
+                            <td className="py-4 px-5 text-slate-800 font-semibold">
+                              {call.loggedBy}
+                            </td>
+                            <td className="py-4 px-6 text-slate-600 max-w-xs break-words">
+                              {call.notes ? (
+                                <span className="text-xs">{call.notes}</span>
+                              ) : (
+                                <span className="text-slate-400 italic">No feedback recorded</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* Chronological Service Purchase Orders Section */}
@@ -756,6 +921,160 @@ export default function ClientLookup({
                   >
                     <UserCheck className="w-3.5 h-3.5" />
                     <span>Complete Lead Closure</span>
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Existing Client Follow-up Modal */}
+      <AnimatePresence>
+        {isFollowupModalOpen && (
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 transition-opacity"
+              onClick={() => setIsFollowupModalOpen(false)}
+              id="existing-followup-backdrop"
+            />
+
+            {/* Modal Body Centered */}
+            <div className="fixed inset-0 flex items-center justify-center p-4 z-50" id="existing-followup-modal-outer">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                transition={{ type: 'spring', duration: 0.4 }}
+                className="bg-white rounded-2xl border border-slate-200/80 shadow-2xl max-w-md w-full overflow-hidden flex flex-col"
+                id="existing-followup-modal-card"
+              >
+                {/* Header */}
+                <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-slate-900 text-emerald-400 flex items-center justify-center">
+                      <Phone className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 leading-none">Existing Client Follow-up</h3>
+                      <span className="text-[11px] text-slate-450 block mt-1">Log touchpoint or schedule next callback</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsFollowupModalOpen(false)}
+                    className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition-all cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Form Body */}
+                <div className="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
+                  {followupError && (
+                    <div className="bg-red-50 border border-red-100 text-red-950 p-3.5 rounded-xl text-xs flex gap-2 leading-relaxed">
+                      <AlertCircle className="w-4.5 h-4.5 text-red-600 shrink-0" />
+                      <span>{followupError}</span>
+                    </div>
+                  )}
+
+                  {/* Read-only client details */}
+                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/60 space-y-2">
+                    <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Target Client</span>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <span className="block text-[10px] text-slate-500 font-medium">Client Name</span>
+                        <span className="text-xs font-bold text-slate-800 block mt-0.5 truncate">{clientName}</span>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] text-slate-500 font-medium">Phone Number</span>
+                        <span className="text-xs font-mono font-bold text-slate-800 block mt-0.5 truncate">{clientNumber}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Call Status */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide">
+                      Conversation Status <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={followupStatus}
+                      onChange={(e) => setFollowupStatus(e.target.value as CallStatus)}
+                      className="block w-full px-3.5 py-2.5 bg-white border border-slate-200 text-slate-900 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 text-xs font-medium"
+                    >
+                      <option value="Call Back">Call Back (Scheduled)</option>
+                      <option value="Interested">Interested (Warm Lead)</option>
+                      <option value="Not Answered">Not Answered</option>
+                      <option value="Busy">Busy</option>
+                      <option value="Not Reachable">Not Reachable</option>
+                      <option value="Closed">Closed</option>
+                    </select>
+                  </div>
+
+                  {/* Follow-up Date */}
+                  {(followupStatus === 'Interested' || followupStatus === 'Call Back') && (
+                    <div className="space-y-1.5 animate-fade-in">
+                      <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide">
+                        Next Follow-up Date <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={followupDateInput}
+                        onChange={(e) => setFollowupDateInput(e.target.value)}
+                        className="block w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-hidden focus:border-slate-900"
+                      />
+                    </div>
+                  )}
+
+                  {/* Interested Service */}
+                  {followupStatus === 'Interested' && (
+                    <div className="space-y-1.5 animate-fade-in">
+                      <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide">
+                        Interested Service <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={followupService}
+                        onChange={(e) => setFollowupService(e.target.value)}
+                        className="block w-full px-3.5 py-2.5 bg-white border border-slate-200 text-slate-900 rounded-xl focus:outline-hidden focus:border-slate-900 text-xs"
+                      >
+                        <option value="" disabled>Select Service</option>
+                        {services.filter((s) => s.status === 'Active').map((s) => (
+                          <option key={s.id} value={s.name}>{s.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Notes */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide">
+                      Summary / Notes
+                    </label>
+                    <textarea
+                      value={followupNotes}
+                      onChange={(e) => setFollowupNotes(e.target.value)}
+                      rows={3}
+                      placeholder="Add conversation summary or client needs..."
+                      className="block w-full p-3 border border-slate-200 rounded-xl bg-white text-xs text-slate-800 focus:outline-hidden focus:border-slate-900"
+                    />
+                  </div>
+                </div>
+
+                {/* Footer Controls */}
+                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                  <button
+                    onClick={() => setIsFollowupModalOpen(false)}
+                    className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveFollowup}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-md shadow-slate-900/10 flex items-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Save Follow-up</span>
                   </button>
                 </div>
               </motion.div>

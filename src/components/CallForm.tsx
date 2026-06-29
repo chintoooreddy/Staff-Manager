@@ -17,9 +17,10 @@ interface CallFormProps {
   activeServices: ServiceItem[];
   currentUserRole?: string;
   currentUserFullName?: string;
+  existingCalls?: CallRecord[];
 }
 
-export default function CallForm({ onClose, onSave, editingCall, staffList, currentAdminEmail, activeServices, currentUserRole, currentUserFullName }: CallFormProps) {
+export default function CallForm({ onClose, onSave, editingCall, staffList, currentAdminEmail, activeServices, currentUserRole, currentUserFullName, existingCalls }: CallFormProps) {
   const [clientName, setClientName] = useState('');
   const [clientNumber, setClientNumber] = useState('');
   const [callStatus, setCallStatus] = useState<CallStatus>('Interested');
@@ -71,6 +72,20 @@ export default function CallForm({ onClose, onSave, editingCall, staffList, curr
     if (!phoneRegex.test(clientNumber)) {
       setErrorCode('Please enter a valid Client phone number.');
       return;
+    }
+
+    // Check if user tried to log a new call with an existing client mobile number
+    if (!editingCall && existingCalls) {
+      const cleanInput = clientNumber.replace(/[\s\-\(\)\+]/g, '').toLowerCase();
+      const isDuplicate = existingCalls.some(
+        (c) => (c.clientNumber || '').replace(/[\s\-\(\)\+]/g, '').toLowerCase() === cleanInput
+      );
+      if (isDuplicate) {
+        setErrorCode(
+          "This mobile number is already existed. Use 'Existing Client Follow-up' feature in Lookup instead create new call log."
+        );
+        return;
+      }
     }
 
     // Conditional requirements check 

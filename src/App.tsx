@@ -829,6 +829,7 @@ export default function App() {
                       closedLeads={closedLeads}
                       services={services}
                       onCloseLead={handleCloseLead}
+                      onSaveCall={handleSaveCall}
                       currentUserRole={currentUserRole}
                       currentUserFullName={currentUserFullName}
                     />
@@ -900,6 +901,7 @@ export default function App() {
             activeServices={services.filter((s) => s.status === 'Active')}
             currentUserRole={currentUserRole}
             currentUserFullName={currentUserFullName}
+            existingCalls={callList}
           />
         )}
       </AnimatePresence>
