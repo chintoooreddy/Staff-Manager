@@ -34,6 +34,7 @@ export interface CallRecord {
   createdDate: string;
   notes?: string;
   isFollowupUpdate?: boolean;
+  followupCompletedDate?: string;
 }
 
 export interface ClosedLead {

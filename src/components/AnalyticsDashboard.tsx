@@ -56,23 +56,18 @@ export default function AnalyticsDashboard({ currentEmail, staffList, callList, 
 
   // Helper to calculate daily metrics for a specific logger name
   const getLoggerDailyStats = (loggerName: string) => {
-    // Filter calls logged today by this logger
-    const todayCalls = callList.filter(
+    // New/Initial calls are those logged today (their original created date is today)
+    const totalNewCallsToday = callList.filter(
       (c) => c.loggedBy === loggerName && c.createdDate === todayDateString
-    );
-
-    // Total today
-    const totalToday = todayCalls.length;
-
-    // Followups are calls that were updated from the Followup section
-    const totalFollowupsToday = todayCalls.filter(
-      (c) => c.isFollowupUpdate === true
     ).length;
 
-    // New/Initial calls are those logged from the Daily Calls section (not followups)
-    const totalNewCallsToday = todayCalls.filter(
-      (c) => c.isFollowupUpdate !== true
+    // Followups are calls where a follow-up action was completed today
+    const totalFollowupsToday = callList.filter(
+      (c) => c.loggedBy === loggerName && c.followupCompletedDate === todayDateString
     ).length;
+
+    // Total dials today is the sum of new calls made today and follow-up actions completed today
+    const totalToday = totalNewCallsToday + totalFollowupsToday;
 
     return {
       totalToday,
@@ -103,22 +98,17 @@ export default function AnalyticsDashboard({ currentEmail, staffList, callList, 
   });
 
   // Stats overall for today (system-wide if Admin, user-specific if User)
-  const overallCallsToday = callList.filter((c) => {
-    const isToday = c.createdDate === todayDateString;
-    if (!isToday) return false;
-    if (effectiveLoggerName) {
-      return c.loggedBy === effectiveLoggerName;
-    }
-    return true;
-  });
+  const overallNewCallsToday = callList.filter((c) => {
+    const matchesLogger = !effectiveLoggerName || c.loggedBy === effectiveLoggerName;
+    return matchesLogger && c.createdDate === todayDateString;
+  }).length;
 
-  const overallNewCallsToday = overallCallsToday.filter(
-    (c) => c.isFollowupUpdate !== true
-  ).length;
+  const overallFollowupsToday = callList.filter((c) => {
+    const matchesLogger = !effectiveLoggerName || c.loggedBy === effectiveLoggerName;
+    return matchesLogger && c.followupCompletedDate === todayDateString;
+  }).length;
 
-  const overallFollowupsToday = overallCallsToday.filter(
-    (c) => c.isFollowupUpdate === true
-  ).length;
+  const overallCallsTodayCount = overallNewCallsToday + overallFollowupsToday;
 
   // Closed Leads & Turnover Calculations (Current Day and Current Month)
   const todayLeads = closedLeads.filter((lead) => lead.closedDate === todayDateString);
@@ -163,7 +153,7 @@ export default function AnalyticsDashboard({ currentEmail, staffList, callList, 
             <span className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold block">
               {isUserRole ? "My Dials Today" : "Today's Dials"}
             </span>
-            <span className="text-xl md:text-2xl font-bold text-white block mt-0.5" id="hero-calls-count">{overallCallsToday.length}</span>
+            <span className="text-xl md:text-2xl font-bold text-white block mt-0.5" id="hero-calls-count">{overallCallsTodayCount}</span>
           </div>
           <div>
             <span className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold block">

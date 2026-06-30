@@ -321,9 +321,22 @@ export default function App() {
     setIsStaffFormOpen(true);
   };
 
-  const handleDeleteStaff = (id: string) => {
-    deleteDoc(doc(db, 'staff_members', id))
-      .catch((err) => handleFirestoreError(err, OperationType.DELETE, `staff_members/${id}`));
+  const handleSuspendStaff = (id: string) => {
+    const staff = staffList.find((s) => s.id === id);
+    if (staff) {
+      const updatedStaff = { ...staff, status: 'Suspended' as const };
+      setDoc(doc(db, 'staff_members', id), cleanObjectForFirestore(updatedStaff))
+        .catch((err) => handleFirestoreError(err, OperationType.WRITE, `staff_members/${id}`));
+    }
+  };
+
+  const handleReactivateStaff = (id: string) => {
+    const staff = staffList.find((s) => s.id === id);
+    if (staff) {
+      const updatedStaff = { ...staff, status: 'Active' as const };
+      setDoc(doc(db, 'staff_members', id), cleanObjectForFirestore(updatedStaff))
+        .catch((err) => handleFirestoreError(err, OperationType.WRITE, `staff_members/${id}`));
+    }
   };
 
   const handleSaveStaff = (memberData: Omit<StaffMember, 'id' | 'joinedDate'> & { id?: string }) => {
@@ -379,10 +392,30 @@ export default function App() {
       .catch((err) => handleFirestoreError(err, OperationType.DELETE, `call_records/${id}`));
   };
 
-  const handleSaveCall = (callData: Omit<CallRecord, 'id' | 'createdDate'> & { id?: string; isFollowupUpdate?: boolean }) => {
+  const handleSaveCall = (callData: Omit<CallRecord, 'id' | 'createdDate'> & { id?: string; isFollowupUpdate?: boolean; followupCompletedDate?: string }) => {
     const id = callData.id || `call-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
     let createdDate = '';
     let isFollowupUpdate = callData.isFollowupUpdate;
+    let followupCompletedDate = callData.followupCompletedDate;
+
+    const formatMonthMap: { [key: number]: string } = {
+      0: 'Jan', 1: 'Feb', 2: 'Mar', 3: 'Apr', 4: 'May', 5: 'Jun',
+      6: 'Jul', 7: 'Aug', 8: 'Sep', 9: 'Oct', 10: 'Nov', 11: 'Dec'
+    };
+    const now = new Date();
+    const monthStr = formatMonthMap[now.getMonth()];
+    const dayStr = String(now.getDate()).padStart(2, '0');
+    const yearStr = now.getFullYear();
+    const todayStr = `${monthStr} ${dayStr}, ${yearStr}`;
+
+    let hours = now.getHours();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const hoursStr = String(hours).padStart(2, '0');
+    const minutesStr = String(now.getMinutes()).padStart(2, '0');
+    const secondsStr = String(now.getSeconds()).padStart(2, '0');
+    const todayStrWithTime = `${monthStr} ${dayStr}, ${yearStr} ${hoursStr}:${minutesStr}:${secondsStr} ${ampm}`;
 
     if (callData.id) {
       const existingCall = callList.find((c) => c.id === callData.id);
@@ -390,16 +423,15 @@ export default function App() {
       if (isFollowupUpdate === undefined && existingCall) {
         isFollowupUpdate = existingCall.isFollowupUpdate;
       }
+      if (followupCompletedDate === undefined && existingCall) {
+        followupCompletedDate = existingCall.followupCompletedDate;
+      }
     } else {
-      const formatMonthMap: { [key: number]: string } = {
-        0: 'Jan', 1: 'Feb', 2: 'Mar', 3: 'Apr', 4: 'May', 5: 'Jun',
-        6: 'Jul', 7: 'Aug', 8: 'Sep', 9: 'Oct', 10: 'Nov', 11: 'Dec'
-      };
-      const now = new Date();
-      const monthStr = formatMonthMap[now.getMonth()];
-      const dayStr = String(now.getDate()).padStart(2, '0');
-      const yearStr = now.getFullYear();
-      createdDate = `${monthStr} ${dayStr}, ${yearStr}`;
+      createdDate = todayStrWithTime;
+    }
+
+    if (isFollowupUpdate) {
+      followupCompletedDate = todayStr;
     }
 
     const updatedCall: CallRecord = {
@@ -413,6 +445,7 @@ export default function App() {
       createdDate,
       notes: callData.notes || '',
       isFollowupUpdate: isFollowupUpdate || false,
+      followupCompletedDate: followupCompletedDate || '',
     };
 
     setDoc(doc(db, 'call_records', id), cleanObjectForFirestore(updatedCall))
@@ -790,10 +823,12 @@ export default function App() {
                 ) : activeTab === 'staff' ? (
                   <div key="staff-viewport" className="animate-fade-in">
                     <StaffManagement
+                      currentEmail={adminEmail}
                       staffList={staffList}
                       onAddStaff={handleAddStaffClick}
                       onEditStaff={handleEditStaffClick}
-                      onDeleteStaff={handleDeleteStaff}
+                      onSuspendStaff={handleSuspendStaff}
+                      onReactivateStaff={handleReactivateStaff}
                     />
                   </div>
                 ) : activeTab === 'picklist' ? (

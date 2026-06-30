@@ -23,7 +23,7 @@ interface CallManagementProps {
   onAddCall: () => void;
   onEditCall: (record: CallRecord) => void;
   onDeleteCall: (id: string) => void;
-  onSaveCall: (callData: Omit<CallRecord, 'id' | 'createdDate'> & { id?: string; isFollowupUpdate?: boolean }) => void;
+  onSaveCall: (callData: Omit<CallRecord, 'id' | 'createdDate'> & { id?: string; isFollowupUpdate?: boolean; followupCompletedDate?: string }) => void;
   onCloseLead: (leadData: { callRecordId: string; clientName: string; clientNumber: string; takenService: string; amountPaid: number; paidBy: string; panelNameUrl?: string; panelUsername?: string; panelPassword?: string }) => void;
 }
 
@@ -103,33 +103,54 @@ export default function CallManagement({
   const [panelPassword, setPanelPassword] = useState<string>('');
   const [closeLeadError, setCloseLeadError] = useState<string>('');
 
-  // Helper to parse date string like "Jun 23, 2026" to local Date object
+  // Helper to parse date string like "Jun 23, 2026 10:20:30 AM" or "Jun 23, 2026" to local Date object
   const parseRecordDate = (dateStr: string): Date => {
-    const cleaned = dateStr.replace(',', '').trim();
-    const parts = cleaned.split(/\s+/);
-    if (parts.length === 3) {
-      const monthMap: { [key: string]: number } = {
-        'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-        'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11,
-        'January': 0, 'February': 1, 'March': 2, 'April': 3, 'June': 5,
-        'July': 6, 'August': 7, 'September': 8, 'October': 9, 'November': 10, 'December': 11
-      };
-      const month = monthMap[parts[0]] !== undefined ? monthMap[parts[0]] : 0;
-      const day = parseInt(parts[1], 10) || 1;
-      const year = parseInt(parts[2], 10) || new Date().getFullYear();
-      const d = new Date(year, month, day);
-      d.setHours(12, 0, 0, 0); // safe center value
-      return d;
-    }
+    if (!dateStr) return new Date(0);
     const parsed = Date.parse(dateStr);
     if (!isNaN(parsed)) {
-      const d = new Date(parsed);
+      return new Date(parsed);
+    }
+    try {
+      const cleaned = dateStr.replace(/,/g, '').trim();
+      const parts = cleaned.split(/\s+/);
+      if (parts.length >= 3) {
+        const monthMap: { [key: string]: number } = {
+          'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+          'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11,
+          'January': 0, 'February': 1, 'March': 2, 'April': 3, 'June': 5,
+          'July': 6, 'August': 7, 'September': 8, 'October': 9, 'November': 10, 'December': 11
+        };
+        const month = monthMap[parts[0]] !== undefined ? monthMap[parts[0]] : 0;
+        const day = parseInt(parts[1], 10) || 1;
+        const year = parseInt(parts[2], 10) || new Date().getFullYear();
+        const d = new Date(year, month, day);
+        d.setHours(12, 0, 0, 0);
+
+        if (parts.length >= 4) {
+          const timePart = parts[3];
+          const ampmPart = parts[4] ? parts[4].toUpperCase() : null;
+          const timeSubparts = timePart.split(':');
+          let hours = parseInt(timeSubparts[0], 10) || 0;
+          const minutes = parseInt(timeSubparts[1], 10) || 0;
+          const seconds = parseInt(timeSubparts[2], 10) || 0;
+
+          if (ampmPart === 'PM' && hours < 12) {
+            hours += 12;
+          } else if (ampmPart === 'AM' && hours === 12) {
+            hours = 0;
+          }
+          d.setHours(hours, minutes, seconds, 0);
+        }
+        return d;
+      }
+      const d = new Date();
       d.setHours(12, 0, 0, 0);
       return d;
+    } catch (e) {
+      const fallback = new Date();
+      fallback.setHours(12, 0, 0, 0);
+      return fallback;
     }
-    const fallback = new Date();
-    fallback.setHours(12, 0, 0, 0);
-    return fallback;
   };
 
   // Helper to parse "YYYY-MM-DD" from date input to local Date object
@@ -361,6 +382,8 @@ export default function CallManagement({
     }
 
     return matchesSearch && matchesStatus && matchesStaff && matchesDateRange;
+  }).sort((a, b) => {
+    return parseRecordDate(b.createdDate).getTime() - parseRecordDate(a.createdDate).getTime();
   });
 
   // Followup calls filtering
@@ -374,6 +397,8 @@ export default function CallManagement({
     if (followupFromDate && call.followupDate < followupFromDate) return false;
     if (followupToDate && call.followupDate > followupToDate) return false;
     return true;
+  }).sort((a, b) => {
+    return parseRecordDate(b.createdDate).getTime() - parseRecordDate(a.createdDate).getTime();
   });
 
   const dailyTotalItems = filteredCalls.length;

@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react';
-import { Search, SlidersHorizontal, UserMinus, Edit2, LogOut, Lock, Clock, Check, ShieldCheck, Mail, Briefcase } from 'lucide-react';
+import { Search, SlidersHorizontal, UserMinus, UserCheck, UserX, Edit2, LogOut, Lock, Clock, Check, ShieldCheck, Mail, Briefcase } from 'lucide-react';
 import { StaffMember, StaffFilterStatus } from '../types';
 import DashboardStats from './DashboardStats';
 import Pagination from './Pagination';
@@ -15,19 +15,22 @@ interface StaffManagementProps {
   onLogout: () => void;
   onAddStaff: () => void;
   onEditStaff: (member: StaffMember) => void;
-  onDeleteStaff: (id: string) => void;
+  onSuspendStaff: (id: string) => void;
+  onReactivateStaff: (id: string) => void;
 }
 
 export default function StaffManagement({
+  currentEmail,
   staffList,
   onAddStaff,
   onEditStaff,
-  onDeleteStaff,
-}: Omit<StaffManagementProps, 'currentEmail' | 'onLogout'>) {
+  onSuspendStaff,
+  onReactivateStaff,
+}: Omit<StaffManagementProps, 'onLogout'>) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<StaffFilterStatus>('All');
   const [roleFilter, setRoleFilter] = useState<string>('All');
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
 
   // Distinct color set for staff avatars
   const avatarColors = [
@@ -198,7 +201,7 @@ export default function StaffManagement({
                 </thead>
                 <tbody className="divide-y divide-slate-150">
                   {paginatedStaff.map((member) => {
-                    const isDeleting = deleteConfirmId === member.id;
+                    const isConfirming = confirmId === member.id;
                     const avatarStyle = getAvatarStyle(member.fullName);
 
                     return (
@@ -265,17 +268,34 @@ export default function StaffManagement({
 
                         {/* Actions buttons */}
                         <td className="py-3.5 px-5 text-right">
-                          {isDeleting ? (
-                            <div className="flex items-center justify-end gap-1.5" id={`delete-confirm-${member.id}`}>
-                              <span className="text-[10px] text-red-600 font-medium mr-1.5">Are you sure?</span>
+                          {isConfirming ? (
+                            <div className="flex items-center justify-end gap-1.5" id={`confirm-actions-${member.id}`}>
+                              <span className="text-[10px] text-slate-500 font-medium mr-1.5">
+                                {member.status === 'Active' ? 'Suspend user?' : 'Reactivate user?'}
+                              </span>
+                              {member.status === 'Active' ? (
+                                <button
+                                  onClick={() => {
+                                    onSuspendStaff(member.id);
+                                    setConfirmId(null);
+                                  }}
+                                  className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-[11px] font-semibold transition-colors cursor-pointer"
+                                >
+                                  Suspend
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    onReactivateStaff(member.id);
+                                    setConfirmId(null);
+                                  }}
+                                  className="px-2 py-1 bg-emerald-650 hover:bg-emerald-750 text-white rounded-md text-[11px] font-semibold transition-colors cursor-pointer"
+                                >
+                                  Reactivate
+                                </button>
+                              )}
                               <button
-                                onClick={() => onDeleteStaff(member.id)}
-                                className="px-2 py-1 bg-red-650 hover:bg-red-750 text-white rounded-md text-[11px] font-semibold transition-colors cursor-pointer"
-                              >
-                                Delete
-                              </button>
-                              <button
-                                onClick={() => setDeleteConfirmId(null)}
+                                onClick={() => setConfirmId(null)}
                                 className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-[11px] font-medium transition-colors cursor-pointer"
                               >
                                 Cancel
@@ -290,13 +310,27 @@ export default function StaffManagement({
                               >
                                 <Edit2 className="w-4 h-4" />
                               </button>
-                              <button
-                                onClick={() => setDeleteConfirmId(member.id)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                title="Delete user"
-                              >
-                                <UserMinus className="w-4 h-4" />
-                              </button>
+                              {member.id === 'master-admin' || member.email.trim().toLowerCase() === currentEmail.trim().toLowerCase() ? (
+                                <span className="p-1.5 text-slate-300 cursor-not-allowed" title="System admin account (cannot be suspended)">
+                                  <Lock className="w-4 h-4 text-slate-300" />
+                                </span>
+                              ) : member.status === 'Active' ? (
+                                <button
+                                  onClick={() => setConfirmId(member.id)}
+                                  className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                                  title="Suspend staff member"
+                                >
+                                  <UserX className="w-4 h-4" />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => setConfirmId(member.id)}
+                                  className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                                  title="Reactivate staff member"
+                                >
+                                  <UserCheck className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
                           )}
                         </td>
