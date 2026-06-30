@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
@@ -32,14 +33,17 @@ async function startServer() {
   app.post("/api/test-smtp", async (req, res) => {
     try {
       const { smtp } = req.body;
-      if (!smtp || !smtp.host || !smtp.senderEmail) {
-        return res.status(400).json({ success: false, error: "Missing SMTP host or sender email" });
-      }
-
-      let password = smtp.password || "";
       
-      // If the password is the masked placeholder, try to resolve the actual password
-      if (password === "••••••••••••") {
+      // Determine host, port, senderEmail, username, encryption, and password with env variable fallbacks
+      let host = smtp?.host || process.env.SMTP_HOST || "smtp.gmail.com";
+      let port = Number(smtp?.port) || Number(process.env.SMTP_PORT) || 587;
+      let senderEmail = smtp?.senderEmail || process.env.SMTP_SENDER_EMAIL || "whitelineborder@gmail.com";
+      let username = smtp?.username || process.env.SMTP_USERNAME || senderEmail;
+      let encryption = smtp?.encryption || process.env.SMTP_ENCRYPTION || "TLS";
+      let password = smtp?.password || "";
+
+      // If the password is the masked placeholder or empty, try to resolve the actual password
+      if (!password || password === "••••••••••••") {
         // First try Env variable
         password = process.env.SMTP_PASSWORD || "";
         // Next try Firestore
@@ -58,17 +62,21 @@ async function startServer() {
         }
       }
 
+      if (!host || !senderEmail) {
+        return res.status(400).json({ success: false, error: "Missing SMTP host or sender email configuration." });
+      }
+
       if (!password || password === "••••••••••••") {
         return res.status(400).json({ success: false, error: "Missing SMTP Password. Please enter your password or App Password." });
       }
 
-      const secure = smtp.encryption === 'SSL' || smtp.port === 465;
+      const secure = encryption === 'SSL' || port === 465;
       const transporter = nodemailer.createTransport({
-        host: smtp.host,
-        port: Number(smtp.port) || 587,
+        host: host,
+        port: port,
         secure: secure,
         auth: {
-          user: smtp.username || smtp.senderEmail,
+          user: username,
           pass: password,
         },
         tls: {
@@ -79,7 +87,7 @@ async function startServer() {
       await transporter.verify();
       res.json({
         success: true,
-        message: `Successfully connected and authenticated with ${smtp.host}:${smtp.port}`
+        message: `Successfully connected and authenticated with ${host}:${port}`
       });
     } catch (err: any) {
       console.error("SMTP Verify Error:", err);
