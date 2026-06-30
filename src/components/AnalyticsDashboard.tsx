@@ -64,14 +64,14 @@ export default function AnalyticsDashboard({ currentEmail, staffList, callList, 
     // Total today
     const totalToday = todayCalls.length;
 
-    // Followups are calls logged today with 'Interested' or 'Call Back'
+    // Followups are calls that were updated from the Followup section
     const totalFollowupsToday = todayCalls.filter(
-      (c) => c.callStatus === 'Interested' || c.callStatus === 'Call Back'
+      (c) => c.isFollowupUpdate === true
     ).length;
 
-    // New/Initial calls are those with general statuses: Not Answered, Busy, Not Reachable
+    // New/Initial calls are those logged from the Daily Calls section (not followups)
     const totalNewCallsToday = todayCalls.filter(
-      (c) => c.callStatus === 'Not Answered' || c.callStatus === 'Busy' || c.callStatus === 'Not Reachable'
+      (c) => c.isFollowupUpdate !== true
     ).length;
 
     return {
@@ -113,11 +113,11 @@ export default function AnalyticsDashboard({ currentEmail, staffList, callList, 
   });
 
   const overallNewCallsToday = overallCallsToday.filter(
-    (c) => c.callStatus === 'Not Answered' || c.callStatus === 'Busy' || c.callStatus === 'Not Reachable'
+    (c) => c.isFollowupUpdate !== true
   ).length;
 
   const overallFollowupsToday = overallCallsToday.filter(
-    (c) => c.callStatus === 'Interested' || c.callStatus === 'Call Back'
+    (c) => c.isFollowupUpdate === true
   ).length;
 
   // Closed Leads & Turnover Calculations (Current Day and Current Month)

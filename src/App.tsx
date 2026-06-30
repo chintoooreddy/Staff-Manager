@@ -379,13 +379,17 @@ export default function App() {
       .catch((err) => handleFirestoreError(err, OperationType.DELETE, `call_records/${id}`));
   };
 
-  const handleSaveCall = (callData: Omit<CallRecord, 'id' | 'createdDate'> & { id?: string }) => {
+  const handleSaveCall = (callData: Omit<CallRecord, 'id' | 'createdDate'> & { id?: string; isFollowupUpdate?: boolean }) => {
     const id = callData.id || `call-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
     let createdDate = '';
+    let isFollowupUpdate = callData.isFollowupUpdate;
 
     if (callData.id) {
       const existingCall = callList.find((c) => c.id === callData.id);
       createdDate = existingCall ? existingCall.createdDate : '';
+      if (isFollowupUpdate === undefined && existingCall) {
+        isFollowupUpdate = existingCall.isFollowupUpdate;
+      }
     } else {
       const formatMonthMap: { [key: number]: string } = {
         0: 'Jan', 1: 'Feb', 2: 'Mar', 3: 'Apr', 4: 'May', 5: 'Jun',
@@ -408,6 +412,7 @@ export default function App() {
       loggedBy: callData.loggedBy || '',
       createdDate,
       notes: callData.notes || '',
+      isFollowupUpdate: isFollowupUpdate || false,
     };
 
     setDoc(doc(db, 'call_records', id), cleanObjectForFirestore(updatedCall))

@@ -23,7 +23,7 @@ interface CallManagementProps {
   onAddCall: () => void;
   onEditCall: (record: CallRecord) => void;
   onDeleteCall: (id: string) => void;
-  onSaveCall: (callData: Omit<CallRecord, 'id' | 'createdDate'> & { id?: string }) => void;
+  onSaveCall: (callData: Omit<CallRecord, 'id' | 'createdDate'> & { id?: string; isFollowupUpdate?: boolean }) => void;
   onCloseLead: (leadData: { callRecordId: string; clientName: string; clientNumber: string; takenService: string; amountPaid: number; paidBy: string; panelNameUrl?: string; panelUsername?: string; panelPassword?: string }) => void;
 }
 
@@ -441,6 +441,7 @@ export default function CallManagement({
       interestedService: needsService ? updateService : undefined,
       loggedBy: updatingFollowupRecord.loggedBy,
       notes: updateNotes.trim() || undefined,
+      isFollowupUpdate: true,
     });
 
     setUpdatingFollowupRecord(null);

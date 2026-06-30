@@ -33,6 +33,7 @@ export interface CallRecord {
   loggedBy: string;
   createdDate: string;
   notes?: string;
+  isFollowupUpdate?: boolean;
 }
 
 export interface ClosedLead {
