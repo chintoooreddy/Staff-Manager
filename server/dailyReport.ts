@@ -146,7 +146,7 @@ export async function generateAndSendDailyReport(options: {
       const smtpSnap = await getDoc(doc(serverDb, 'settings', 'smtp_config')).catch(() => null);
       if (smtpSnap && smtpSnap.exists()) {
         const dbSmtp = smtpSnap.data();
-        if (dbSmtp.password) {
+        if (dbSmtp.password && dbSmtp.password !== "••••••••••••") {
           smtpHost = dbSmtp.host || smtpHost;
           smtpPort = Number(dbSmtp.port) || smtpPort;
           smtpSenderEmail = dbSmtp.senderEmail || smtpSenderEmail;
