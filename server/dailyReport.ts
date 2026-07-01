@@ -132,30 +132,50 @@ export async function generateAndSendDailyReport(options: {
     }
 
     // 6. Configure SMTP Transporter
-    // Prioritize Environment Variables as requested in Req #10
-    let smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
-    let smtpPort = Number(process.env.SMTP_PORT) || 587;
-    let smtpSenderEmail = process.env.SMTP_SENDER_EMAIL || "whitelineborder@gmail.com";
-    let smtpSenderName = process.env.SMTP_SENDER_NAME || "CRM Daily Reports";
-    let smtpUsername = process.env.SMTP_USERNAME || smtpSenderEmail;
-    let smtpPassword = process.env.SMTP_PASSWORD || "";
-    let smtpSecure = process.env.SMTP_ENCRYPTION === "SSL" || smtpPort === 465;
+    const isMaskedPassword = (pwd: string) => {
+      if (!pwd) return true;
+      const trimmed = pwd.trim();
+      return trimmed === "••••••••••••" || trimmed === "•••••••••••••••••" || /^[•*●]+$/.test(trimmed);
+    };
 
-    // Fallback to Firestore Admin SMTP Config if env password is not set
-    if (!smtpPassword) {
+    let smtpHost = "smtp.gmail.com";
+    let smtpPort = 587;
+    let smtpSenderEmail = "whitelineborder@gmail.com";
+    let smtpSenderName = "CRM Daily Reports";
+    let smtpUsername = "whitelineborder@gmail.com";
+    let smtpPassword = "";
+    let smtpSecure = false;
+
+    // Load from Firestore first
+    try {
       const smtpSnap = await getDoc(doc(serverDb, 'settings', 'smtp_config')).catch(() => null);
       if (smtpSnap && smtpSnap.exists()) {
         const dbSmtp = smtpSnap.data();
-        if (dbSmtp.password && dbSmtp.password !== "••••••••••••") {
-          smtpHost = dbSmtp.host || smtpHost;
-          smtpPort = Number(dbSmtp.port) || smtpPort;
-          smtpSenderEmail = dbSmtp.senderEmail || smtpSenderEmail;
-          smtpSenderName = dbSmtp.senderName || smtpSenderName;
-          smtpUsername = dbSmtp.username || smtpUsername;
+        smtpHost = dbSmtp.host || smtpHost;
+        smtpPort = Number(dbSmtp.port) || smtpPort;
+        smtpSenderEmail = dbSmtp.senderEmail || smtpSenderEmail;
+        smtpSenderName = dbSmtp.senderName || smtpSenderName;
+        smtpUsername = dbSmtp.username || smtpUsername;
+        if (dbSmtp.password && !isMaskedPassword(dbSmtp.password)) {
           smtpPassword = dbSmtp.password;
-          smtpSecure = dbSmtp.encryption === 'SSL' || smtpPort === 465;
         }
+        smtpSecure = dbSmtp.encryption === 'SSL' || smtpPort === 465;
       }
+    } catch (dbErr) {
+      console.warn("Could not load SMTP config from DB for daily report:", dbErr);
+    }
+
+    // Override with environment variables if present
+    if (process.env.SMTP_HOST) smtpHost = process.env.SMTP_HOST;
+    if (process.env.SMTP_PORT) smtpPort = Number(process.env.SMTP_PORT);
+    if (process.env.SMTP_SENDER_EMAIL) smtpSenderEmail = process.env.SMTP_SENDER_EMAIL;
+    if (process.env.SMTP_SENDER_NAME) smtpSenderName = process.env.SMTP_SENDER_NAME;
+    if (process.env.SMTP_USERNAME) smtpUsername = process.env.SMTP_USERNAME;
+    if (process.env.SMTP_PASSWORD && !isMaskedPassword(process.env.SMTP_PASSWORD)) {
+      smtpPassword = process.env.SMTP_PASSWORD;
+    }
+    if (process.env.SMTP_ENCRYPTION) {
+      smtpSecure = process.env.SMTP_ENCRYPTION === 'SSL' || smtpPort === 465;
     }
 
     if (!smtpPassword) {

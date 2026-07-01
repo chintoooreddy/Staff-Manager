@@ -18,6 +18,69 @@ function formatSmtpError(err: any): string {
   return msg;
 }
 
+function isMaskedPassword(pwd: string): boolean {
+  if (!pwd) return true;
+  const trimmed = pwd.trim();
+  if (trimmed === "") return true;
+  return trimmed === "••••••••••••" || trimmed === "•••••••••••••••••" || /^[•*●]+$/.test(trimmed);
+}
+
+async function resolveSmtpConfig(clientSmtp?: any) {
+  // 1. Defaults
+  let host = "smtp.gmail.com";
+  let port = 587;
+  let senderEmail = "whitelineborder@gmail.com";
+  let senderName = "Portal Security Team";
+  let username = "whitelineborder@gmail.com";
+  let password = "";
+  let encryption = "TLS";
+
+  // 2. Load from Firestore settings
+  try {
+    const smtpSnap = await getDoc(doc(serverDb, 'settings', 'smtp_config')).catch(() => null);
+    if (smtpSnap && smtpSnap.exists()) {
+      const dbSmtp = smtpSnap.data();
+      host = dbSmtp.host || host;
+      port = Number(dbSmtp.port) || port;
+      senderEmail = dbSmtp.senderEmail || senderEmail;
+      senderName = dbSmtp.senderName || senderName;
+      username = dbSmtp.username || username;
+      if (dbSmtp.password && !isMaskedPassword(dbSmtp.password)) {
+        password = dbSmtp.password;
+      }
+      encryption = dbSmtp.encryption || encryption;
+    }
+  } catch (dbErr) {
+    console.warn("Could not load SMTP config from DB:", dbErr);
+  }
+
+  // 3. Environment variable/Secrets overrides (if present and non-empty)
+  if (process.env.SMTP_HOST) host = process.env.SMTP_HOST;
+  if (process.env.SMTP_PORT) port = Number(process.env.SMTP_PORT);
+  if (process.env.SMTP_SENDER_EMAIL) senderEmail = process.env.SMTP_SENDER_EMAIL;
+  if (process.env.SMTP_SENDER_NAME) senderName = process.env.SMTP_SENDER_NAME;
+  if (process.env.SMTP_USERNAME) username = process.env.SMTP_USERNAME;
+  if (process.env.SMTP_PASSWORD && !isMaskedPassword(process.env.SMTP_PASSWORD)) {
+    password = process.env.SMTP_PASSWORD;
+  }
+  if (process.env.SMTP_ENCRYPTION) encryption = process.env.SMTP_ENCRYPTION;
+
+  // 4. Client-supplied overrides
+  if (clientSmtp) {
+    if (clientSmtp.host) host = clientSmtp.host;
+    if (clientSmtp.port) port = Number(clientSmtp.port);
+    if (clientSmtp.senderEmail) senderEmail = clientSmtp.senderEmail;
+    if (clientSmtp.senderName) senderName = clientSmtp.senderName;
+    if (clientSmtp.username) username = clientSmtp.username;
+    if (clientSmtp.password && !isMaskedPassword(clientSmtp.password)) {
+      password = clientSmtp.password;
+    }
+    if (clientSmtp.encryption) encryption = clientSmtp.encryption;
+  }
+
+  return { host, port, senderEmail, senderName, username, password, encryption };
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -33,51 +96,24 @@ async function startServer() {
   app.post("/api/test-smtp", async (req, res) => {
     try {
       const { smtp } = req.body;
-      
-      // Determine host, port, senderEmail, username, encryption, and password with env variable fallbacks
-      let host = smtp?.host || process.env.SMTP_HOST || "smtp.gmail.com";
-      let port = Number(smtp?.port) || Number(process.env.SMTP_PORT) || 587;
-      let senderEmail = smtp?.senderEmail || process.env.SMTP_SENDER_EMAIL || "whitelineborder@gmail.com";
-      let username = smtp?.username || process.env.SMTP_USERNAME || senderEmail;
-      let encryption = smtp?.encryption || process.env.SMTP_ENCRYPTION || "TLS";
-      let password = smtp?.password || "";
+      const config = await resolveSmtpConfig(smtp);
 
-      // If the password is the masked placeholder or empty, try to resolve the actual password
-      if (!password || password === "••••••••••••") {
-        // First try Env variable
-        password = process.env.SMTP_PASSWORD || "";
-        // Next try Firestore
-        if (!password) {
-          try {
-            const smtpSnap = await getDoc(doc(serverDb, 'settings', 'smtp_config')).catch(() => null);
-            if (smtpSnap && smtpSnap.exists()) {
-              const dbSmtp = smtpSnap.data();
-              if (dbSmtp.password && dbSmtp.password !== "••••••••••••") {
-                password = dbSmtp.password;
-              }
-            }
-          } catch (dbErr) {
-            console.warn("Could not load SMTP password from DB for testing:", dbErr);
-          }
-        }
-      }
-
-      if (!host || !senderEmail) {
+      if (!config.host || !config.senderEmail) {
         return res.status(400).json({ success: false, error: "Missing SMTP host or sender email configuration." });
       }
 
-      if (!password || password === "••••••••••••") {
+      if (!config.password || isMaskedPassword(config.password)) {
         return res.status(400).json({ success: false, error: "Missing SMTP Password. Please enter your password or App Password." });
       }
 
-      const secure = encryption === 'SSL' || port === 465;
+      const secure = config.encryption === 'SSL' || config.port === 465;
       const transporter = nodemailer.createTransport({
-        host: host,
-        port: port,
+        host: config.host,
+        port: config.port,
         secure: secure,
         auth: {
-          user: username,
-          pass: password,
+          user: config.username,
+          pass: config.password,
         },
         tls: {
           rejectUnauthorized: false
@@ -87,7 +123,7 @@ async function startServer() {
       await transporter.verify();
       res.json({
         success: true,
-        message: `Successfully connected and authenticated with ${host}:${port}`
+        message: `Successfully connected and authenticated with ${config.host}:${config.port}`
       });
     } catch (err: any) {
       console.error("SMTP Verify Error:", err);
@@ -106,64 +142,23 @@ async function startServer() {
         return res.status(400).json({ success: false, error: "Missing recipient, subject, or email body" });
       }
 
-      // 1. Start with environment variables if present (highest priority for Cloud Run / hosting environment)
-      let host = process.env.SMTP_HOST || "smtp.gmail.com";
-      let port = Number(process.env.SMTP_PORT) || 587;
-      let senderEmail = process.env.SMTP_SENDER_EMAIL || "whitelineborder@gmail.com";
-      let senderName = process.env.SMTP_SENDER_NAME || "Portal Security Team";
-      let username = process.env.SMTP_USERNAME || senderEmail;
-      let password = process.env.SMTP_PASSWORD || "";
-      let encryption = process.env.SMTP_ENCRYPTION || "TLS";
+      const config = await resolveSmtpConfig(smtp);
 
-      // 2. If environment variables are missing password, check database settings on server-side
-      if (!password) {
-        try {
-          const smtpSnap = await getDoc(doc(serverDb, 'settings', 'smtp_config')).catch(() => null);
-          if (smtpSnap && smtpSnap.exists()) {
-            const dbSmtp = smtpSnap.data();
-            if (dbSmtp.password && dbSmtp.password !== "••••••••••••") {
-              host = dbSmtp.host || host;
-              port = Number(dbSmtp.port) || port;
-              senderEmail = dbSmtp.senderEmail || senderEmail;
-              senderName = dbSmtp.senderName || senderName;
-              username = dbSmtp.username || username;
-              password = dbSmtp.password;
-              encryption = dbSmtp.encryption || encryption;
-            }
-          }
-        } catch (dbErr) {
-          console.warn("Could not load SMTP config from DB:", dbErr);
-        }
-      }
-
-      // 3. If the client passed an explicit configuration with a real password, let it take precedence
-      if (smtp) {
-        host = smtp.host || host;
-        port = Number(smtp.port) || port;
-        senderEmail = smtp.senderEmail || senderEmail;
-        senderName = smtp.senderName || senderName;
-        username = smtp.username || username;
-        if (smtp.password && smtp.password !== "••••••••••••") {
-          password = smtp.password;
-        }
-        encryption = smtp.encryption || encryption;
-      }
-
-      if (!password || password === "••••••••••••") {
+      if (!config.password || isMaskedPassword(config.password)) {
         return res.status(400).json({
           success: false,
           error: "SMTP Password not configured. Please set SMTP_PASSWORD in your environment variables or configure it in Admin Settings -> SMTP Configuration."
         });
       }
 
-      const secure = encryption === 'SSL' || port === 465;
+      const secure = config.encryption === 'SSL' || config.port === 465;
       const transporter = nodemailer.createTransport({
-        host,
-        port,
-        secure,
+        host: config.host,
+        port: config.port,
+        secure: secure,
         auth: {
-          user: username,
-          pass: password,
+          user: config.username,
+          pass: config.password,
         },
         tls: {
           rejectUnauthorized: false
@@ -171,7 +166,7 @@ async function startServer() {
       });
 
       const mailOptions = {
-        from: `"${senderName}" <${senderEmail}>`,
+        from: `"${config.senderName}" <${config.senderEmail}>`,
         to,
         subject,
         text: body,
@@ -184,7 +179,7 @@ async function startServer() {
       res.json({
         success: true,
         messageId: info.messageId,
-        message: `Email delivered to ${to} via ${host}`
+        message: `Email delivered to ${to} via ${config.host}`
       });
     } catch (err: any) {
       console.error("SMTP Send Error:", err);
