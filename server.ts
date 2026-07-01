@@ -86,7 +86,31 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
+  // Enable CORS for custom domain frontend requests
+  app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, PATCH, DELETE");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   app.use(express.json());
+
+  // Publish APP_URL to Firestore so custom domains can resolve backend endpoints
+  if (process.env.APP_URL) {
+    try {
+      await setDoc(doc(serverDb, 'settings', 'app_config'), {
+        backendUrl: process.env.APP_URL,
+        updatedAt: Date.now()
+      }, { merge: true });
+      console.log(`Backend published APP_URL to Firestore: ${process.env.APP_URL}`);
+    } catch (err) {
+      console.error("Failed to publish APP_URL to Firestore:", err);
+    }
+  }
 
   // API Health check
   app.get("/api/health", (req, res) => {

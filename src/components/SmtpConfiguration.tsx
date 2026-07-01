@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Mail, Server, Shield, Lock, Eye, EyeOff, CheckCircle2, Send, RefreshCw, Trash2, AlertCircle, ExternalLink } from 'lucide-react';
-import { db } from '../firebase';
+import { db, getApiUrl } from '../firebase';
 import { doc, getDoc, setDoc, collection, onSnapshot, query, deleteDoc, getDocs } from 'firebase/firestore';
 import { SmtpConfig, SentEmail } from '../types';
 
@@ -128,7 +128,8 @@ export default function SmtpConfiguration() {
     setIsTesting(true);
     setStatusMessage(null);
     try {
-      const res = await fetch('/api/test-smtp', {
+      const url = await getApiUrl('/api/test-smtp');
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ smtp: config }),

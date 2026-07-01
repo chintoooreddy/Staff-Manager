@@ -1,11 +1,33 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
 export const auth = getAuth();
+
+export async function getApiUrl(path: string): Promise<string> {
+  const hostname = window.location.hostname;
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.run.app')) {
+    return path;
+  }
+
+  try {
+    const docRef = doc(db, 'settings', 'app_config');
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      if (data && data.backendUrl) {
+        const baseUrl = data.backendUrl.endsWith('/') ? data.backendUrl.slice(0, -1) : data.backendUrl;
+        return `${baseUrl}${path}`;
+      }
+    }
+  } catch (err) {
+    console.error('Failed to resolve backendUrl from Firestore:', err);
+  }
+  return path;
+}
 
 export enum OperationType {
   CREATE = 'create',
