@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Lock, Mail, Eye, EyeOff, ShieldAlert, CheckCircle2, ArrowLeft, Send, KeyRound } from 'lucide-react';
 import { StaffMember } from '../types';
-import { db, getApiUrl } from '../firebase';
+import { db } from '../firebase';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 interface LoginProps {
@@ -128,8 +128,7 @@ export default function Login({ onLoginSuccess, staffList }: LoginProps) {
       // Actually send email via Express backend route if password/credentials exist
       if (smtpConfig.host && smtpConfig.senderEmail) {
         try {
-          const url = await getApiUrl('/api/send-email');
-          const res = await fetch(url, {
+          const res = await fetch('/api/send-email', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
