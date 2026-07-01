@@ -58,12 +58,12 @@ export default function AnalyticsDashboard({ currentEmail, staffList, callList, 
   const getLoggerDailyStats = (loggerName: string) => {
     // New/Initial calls are those logged today (their original created date is today)
     const totalNewCallsToday = callList.filter(
-      (c) => c.loggedBy === loggerName && c.createdDate === todayDateString
+      (c) => c.loggedBy === loggerName && c.createdDate && c.createdDate.startsWith(todayDateString)
     ).length;
 
     // Followups are calls where a follow-up action was completed today
     const totalFollowupsToday = callList.filter(
-      (c) => c.loggedBy === loggerName && c.followupCompletedDate === todayDateString
+      (c) => c.loggedBy === loggerName && c.followupCompletedDate && c.followupCompletedDate.startsWith(todayDateString)
     ).length;
 
     // Total dials today is the sum of new calls made today and follow-up actions completed today
@@ -100,12 +100,12 @@ export default function AnalyticsDashboard({ currentEmail, staffList, callList, 
   // Stats overall for today (system-wide if Admin, user-specific if User)
   const overallNewCallsToday = callList.filter((c) => {
     const matchesLogger = !effectiveLoggerName || c.loggedBy === effectiveLoggerName;
-    return matchesLogger && c.createdDate === todayDateString;
+    return matchesLogger && c.createdDate && c.createdDate.startsWith(todayDateString);
   }).length;
 
   const overallFollowupsToday = callList.filter((c) => {
     const matchesLogger = !effectiveLoggerName || c.loggedBy === effectiveLoggerName;
-    return matchesLogger && c.followupCompletedDate === todayDateString;
+    return matchesLogger && c.followupCompletedDate && c.followupCompletedDate.startsWith(todayDateString);
   }).length;
 
   const overallCallsTodayCount = overallNewCallsToday + overallFollowupsToday;
