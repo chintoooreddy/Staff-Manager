@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { LogOut, Users, PhoneCall, ShieldCheck, LayoutDashboard, Settings, Menu, X, UserCheck, TrendingUp, Mail, Search } from 'lucide-react';
+import { LogOut, Users, PhoneCall, ShieldCheck, LayoutDashboard, Settings, Menu, X, UserCheck, TrendingUp, Mail, Search, ChevronDown, ClipboardList, Calendar, HeartHandshake } from 'lucide-react';
 import Login from './components/Login';
 import StaffManagement from './components/StaffManagement';
 import StaffForm from './components/StaffForm';
@@ -143,6 +143,8 @@ export default function App() {
   // App views: 'analytics' (Operational Dashboard), 'staff' (Staff Management), 'calls' (Call Management), 'picklist' (Picklist Management), 'closed_leads' (Closed Leads), 'turnover' (Corporate Turnover), 'smtp' or 'lookup'
   const [activeTab, setActiveTab] = useState<'analytics' | 'staff' | 'calls' | 'picklist' | 'closed_leads' | 'turnover' | 'smtp' | 'lookup'>('analytics');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+  const [callsSubTab, setCallsSubTab] = useState<'daily' | 'followup' | 'positive'>('daily');
+  const [isCallManagementExpanded, setIsCallManagementExpanded] = useState<boolean>(true);
 
   // Staff state
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
@@ -668,21 +670,81 @@ export default function App() {
                   </button>
                 )}
 
-                <button
-                  onClick={() => {
-                    setActiveTab('calls');
-                    setIsMobileSidebarOpen(false);
-                  }}
-                  className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-3 cursor-pointer ${
-                    activeTab === 'calls'
-                      ? 'bg-slate-900 text-white shadow-sm border border-slate-900'
-                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50 border border-transparent'
-                  }`}
-                  id="tab-toggle-calls"
-                >
-                  <PhoneCall className="w-4 h-4 shrink-0" />
-                  <span>Call Management</span>
-                </button>
+                <div className="space-y-1" id="calls-menu-dropdown-wrapper">
+                  <button
+                    onClick={() => {
+                      setActiveTab('calls');
+                      setIsCallManagementExpanded(!isCallManagementExpanded);
+                    }}
+                    className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${
+                      activeTab === 'calls'
+                        ? 'bg-slate-900 text-white shadow-sm border border-slate-900'
+                        : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50 border border-transparent'
+                    }`}
+                    id="tab-toggle-calls"
+                  >
+                    <div className="flex items-center gap-3">
+                      <PhoneCall className="w-4 h-4 shrink-0" />
+                      <span>Call Management</span>
+                    </div>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 shrink-0 ${isCallManagementExpanded ? 'rotate-180 text-white' : 'text-slate-400'}`} />
+                  </button>
+
+                  {isCallManagementExpanded && (
+                    <div className="pl-6 pr-1 py-1 space-y-1 border-l-2 border-slate-200 ml-4.5 animate-fade-in" id="calls-submenu-options">
+                      <button
+                        onClick={() => {
+                          setActiveTab('calls');
+                          setCallsSubTab('daily');
+                          setIsMobileSidebarOpen(false);
+                        }}
+                        className={`w-full px-3 py-2 rounded-lg text-[11px] font-bold transition-all flex items-center gap-2.5 cursor-pointer ${
+                          activeTab === 'calls' && callsSubTab === 'daily'
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                        id="subtab-toggle-daily"
+                      >
+                        <ClipboardList className="w-3.5 h-3.5 shrink-0" />
+                        <span>Daily Calls</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setActiveTab('calls');
+                          setCallsSubTab('followup');
+                          setIsMobileSidebarOpen(false);
+                        }}
+                        className={`w-full px-3 py-2 rounded-lg text-[11px] font-bold transition-all flex items-center gap-2.5 cursor-pointer ${
+                          activeTab === 'calls' && callsSubTab === 'followup'
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                        id="subtab-toggle-followup"
+                      >
+                        <Calendar className="w-3.5 h-3.5 shrink-0" />
+                        <span>Follow Up Calls</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setActiveTab('calls');
+                          setCallsSubTab('positive');
+                          setIsMobileSidebarOpen(false);
+                        }}
+                        className={`w-full px-3 py-2 rounded-lg text-[11px] font-bold transition-all flex items-center gap-2.5 cursor-pointer ${
+                          activeTab === 'calls' && callsSubTab === 'positive'
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                        id="subtab-toggle-positive"
+                      >
+                        <HeartHandshake className="w-3.5 h-3.5 shrink-0 text-cyan-500" />
+                        <span>Positive Clients</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 <button
                   onClick={() => {
@@ -901,6 +963,8 @@ export default function App() {
                       onDeleteCall={handleDeleteCall}
                       onSaveCall={handleSaveCall}
                       onCloseLead={handleCloseLead}
+                      activeSubTab={callsSubTab}
+                      onActiveSubTabChange={setCallsSubTab}
                     />
                   </div>
                 )}

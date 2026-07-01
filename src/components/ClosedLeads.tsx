@@ -43,6 +43,43 @@ export default function ClosedLeads({
   const leadClosedByNames = closedLeads.map(c => c.closedBy || 'Administrator').filter(Boolean);
   const uniqueEmployees = Array.from(new Set([...staffNames, ...leadClosedByNames])).sort();
 
+  // Helper to identify current month & year
+  const now = new Date();
+  const formatMonthMap: { [key: number]: string } = {
+    0: 'Jan', 1: 'Feb', 2: 'Mar', 3: 'Apr', 4: 'May', 5: 'Jun',
+    6: 'Jul', 7: 'Aug', 8: 'Sep', 9: 'Oct', 10: 'Nov', 11: 'Dec'
+  };
+  const currentMonthName = formatMonthMap[now.getMonth()];
+  const currentYearStr = String(now.getFullYear());
+  const currentMonthValue = `${currentMonthName} ${currentYearStr}`;
+
+  // Find all unique months from closedLeads
+  const leadMonths = closedLeads.map(lead => {
+    if (!lead.closedDate) return '';
+    const cleaned = lead.closedDate.replace(',', '').trim();
+    const parts = cleaned.split(/\s+/);
+    if (parts.length >= 3) {
+      return `${parts[0]} ${parts[parts.length - 1]}`;
+    }
+    return '';
+  }).filter(Boolean);
+
+  const uniqueMonths = Array.from(new Set([currentMonthValue, ...leadMonths])).sort((a, b) => {
+    const parseMonthYear = (str: string) => {
+      const parts = str.split(' ');
+      const m = Object.values(formatMonthMap).indexOf(parts[0]);
+      const y = parseInt(parts[1], 10) || 0;
+      return y * 12 + m;
+    };
+    return parseMonthYear(b) - parseMonthYear(a);
+  });
+
+  // Admin filter states (defaults to Month wise and current month)
+  const [adminFilterType, setAdminFilterType] = useState<'month' | 'custom'>('month');
+  const [adminSelectedMonth, setAdminSelectedMonth] = useState<string>(currentMonthValue);
+  const [adminStartDate, setAdminStartDate] = useState<string>('');
+  const [adminEndDate, setAdminEndDate] = useState<string>('');
+
   // Filter visible closed leads based on user role or Admin employee selection
   const visibleLeads = currentUserRole === 'User'
     ? closedLeads.filter((lead) => (lead.closedBy || 'Administrator').toLowerCase() === (currentUserFullName || '').toLowerCase())
@@ -63,15 +100,6 @@ export default function ClosedLeads({
 
   // Delete lead state
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-
-  // Helper to identify current month & year
-  const now = new Date();
-  const formatMonthMap: { [key: number]: string } = {
-    0: 'Jan', 1: 'Feb', 2: 'Mar', 3: 'Apr', 4: 'May', 5: 'Jun',
-    6: 'Jul', 7: 'Aug', 8: 'Sep', 9: 'Oct', 10: 'Nov', 11: 'Dec'
-  };
-  const currentMonthName = formatMonthMap[now.getMonth()];
-  const currentYearStr = String(now.getFullYear());
 
   const currentMonthLeads = visibleLeads.filter((lead) => {
     if (!lead.closedDate) return false;
@@ -298,20 +326,24 @@ export default function ClosedLeads({
       {/* Admin Employee Revenue Breakdown */}
       {currentUserRole === 'Admin' && (
         <div className="bg-slate-900 text-white rounded-2xl p-5 shadow-sm border border-slate-800 space-y-4" id="admin-user-performance-panel">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-3">
             <div>
               <h2 className="text-sm font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-2">
                 <UserCheck className="w-4 h-4" />
                 Employee Revenue Analytics (Admin)
               </h2>
-              <p className="text-xs text-slate-400 mt-1">Select an employee to filter all directory records and view their service-wise & total closed revenue.</p>
+              <p className="text-xs text-slate-400 mt-1">Filter all closed directory records to view service-wise & total closed revenue.</p>
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <label className="text-xs text-slate-400 font-medium whitespace-nowrap">Select Employee:</label>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-3 border-b border-slate-800">
+            {/* 1. Employee Filter */}
+            <div className="space-y-1.5">
+              <label className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Employee Profile</label>
               <select
                 value={selectedEmployeeFilter}
                 onChange={(e) => setSelectedEmployeeFilter(e.target.value)}
-                className="bg-slate-800 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 outline-none focus:border-indigo-400 font-semibold min-w-[180px] cursor-pointer"
+                className="w-full bg-slate-800 border border-slate-700 text-white text-xs rounded-xl px-3 py-2.5 outline-none focus:border-indigo-400 font-semibold cursor-pointer"
               >
                 <option value="All">All Employees (Combined)</option>
                 {uniqueEmployees.map((emp) => (
@@ -319,13 +351,108 @@ export default function ClosedLeads({
                 ))}
               </select>
             </div>
+
+            {/* 2. Filter Mode (Month-wise vs Custom Date) */}
+            <div className="space-y-1.5">
+              <label className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Time Frame Mode</label>
+              <div className="grid grid-cols-2 gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setAdminFilterType('month')}
+                  className={`text-xs py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                    adminFilterType === 'month'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Month-Wise
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdminFilterType('custom')}
+                  className={`text-xs py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                    adminFilterType === 'custom'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Custom Dates
+                </button>
+              </div>
+            </div>
+
+            {/* 3. Conditional Inputs based on Mode */}
+            <div className="space-y-1.5">
+              {adminFilterType === 'month' ? (
+                <>
+                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Select Month</label>
+                  <select
+                    value={adminSelectedMonth}
+                    onChange={(e) => setAdminSelectedMonth(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 text-white text-xs rounded-xl px-3 py-2.5 outline-none focus:border-indigo-400 font-semibold cursor-pointer"
+                  >
+                    {uniqueMonths.map((m) => (
+                      <option key={m} value={m}>
+                        {m} {m === currentMonthValue ? '(Current Month)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <>
+                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider block">Custom Date Range</label>
+                  <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5">
+                    <div className="flex flex-col flex-1">
+                      <span className="text-[9px] text-slate-500 font-bold uppercase leading-none">From</span>
+                      <input
+                        type="date"
+                        value={adminStartDate}
+                        onChange={(e) => setAdminStartDate(e.target.value)}
+                        className="text-xs text-white bg-transparent border-0 outline-none p-0 focus:ring-0 cursor-pointer min-h-[1.5rem]"
+                      />
+                    </div>
+                    <div className="h-6 w-px bg-slate-700" />
+                    <div className="flex flex-col flex-1">
+                      <span className="text-[9px] text-slate-500 font-bold uppercase leading-none">To</span>
+                      <input
+                        type="date"
+                        value={adminEndDate}
+                        onChange={(e) => setAdminEndDate(e.target.value)}
+                        className="text-xs text-white bg-transparent border-0 outline-none p-0 focus:ring-0 cursor-pointer min-h-[1.5rem]"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           {(() => {
-            const targetLeads = selectedEmployeeFilter === 'All'
+            const employeeLeads = selectedEmployeeFilter === 'All'
               ? closedLeads
               : closedLeads.filter(l => (l.closedBy || 'Administrator').toLowerCase() === selectedEmployeeFilter.toLowerCase());
             
+            const targetLeads = employeeLeads.filter(lead => {
+              if (adminFilterType === 'month') {
+                if (!lead.closedDate) return false;
+                const parts = adminSelectedMonth.split(' ');
+                const mName = parts[0];
+                const yStr = parts[1];
+                return lead.closedDate.startsWith(mName) && lead.closedDate.endsWith(yStr);
+              } else {
+                const recordDate = parseRecordDate(lead.closedDate);
+                if (adminStartDate) {
+                  const start = parseInputDate(adminStartDate, false);
+                  if (recordDate < start) return false;
+                }
+                if (adminEndDate) {
+                  const end = parseInputDate(adminEndDate, true);
+                  if (recordDate > end) return false;
+                }
+                return true;
+              }
+            });
+
             const totalAmt = targetLeads.reduce((acc, l) => acc + (l.amountPaid || 0), 0);
             
             const serviceBreakdown = targetLeads.reduce((acc: { [key: string]: { count: number; amount: number } }, l) => {
@@ -337,10 +464,16 @@ export default function ClosedLeads({
             }, {});
 
             return (
-              <div className="pt-3 border-t border-slate-800 space-y-3">
+              <div className="pt-3 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-800/80 p-3.5 rounded-xl border border-slate-700/60">
                   <span className="text-xs text-slate-300 font-medium">
                     Overall Performance for: <span className="font-bold text-white ml-1">{selectedEmployeeFilter === 'All' ? 'All Employees' : selectedEmployeeFilter}</span>
+                    <span className="text-indigo-400 mx-1.5">•</span>
+                    Period: <span className="font-bold text-indigo-300">
+                      {adminFilterType === 'month' 
+                        ? adminSelectedMonth 
+                        : `${adminStartDate || 'Beginning'} to ${adminEndDate || 'Today'}`}
+                    </span>
                   </span>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-slate-400">{targetLeads.length} total {targetLeads.length === 1 ? 'deal' : 'deals'}</span>

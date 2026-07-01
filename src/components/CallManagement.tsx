@@ -8,7 +8,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, SlidersHorizontal, Trash2, Edit3, ClipboardList, Calendar, Bookmark, 
   HeartHandshake, PhoneCall, CheckCircle2, RefreshCw, PhoneForwarded, 
-  MessageSquare, Download, X, AlertCircle, FileSpreadsheet, Save, ChevronDown, Clock, UserCheck
+  MessageSquare, Download, X, AlertCircle, FileSpreadsheet, Save, ChevronDown, Clock, UserCheck, ArrowUpDown,
+  Table, LayoutGrid
 } from 'lucide-react';
 import Pagination from './Pagination';
 import { CallRecord, CallStatus, StaffMember, ServiceItem } from '../types';
@@ -25,6 +26,8 @@ interface CallManagementProps {
   onDeleteCall: (id: string) => void;
   onSaveCall: (callData: Omit<CallRecord, 'id' | 'createdDate'> & { id?: string; isFollowupUpdate?: boolean; followupCompletedDate?: string }) => void;
   onCloseLead: (leadData: { callRecordId: string; clientName: string; clientNumber: string; takenService: string; amountPaid: number; paidBy: string; panelNameUrl?: string; panelUsername?: string; panelPassword?: string }) => void;
+  activeSubTab?: 'daily' | 'followup' | 'positive';
+  onActiveSubTabChange?: (subTab: 'daily' | 'followup' | 'positive') => void;
 }
 
 export default function CallManagement({
@@ -39,14 +42,24 @@ export default function CallManagement({
   onDeleteCall,
   onSaveCall,
   onCloseLead,
+  activeSubTab: propActiveSubTab,
+  onActiveSubTabChange,
 }: CallManagementProps) {
   // Define visible calls based on role
   const visibleCalls = currentUserRole === 'User'
     ? callList.filter((c) => (c.loggedBy || '').toLowerCase() === (currentUserFullName || '').toLowerCase())
     : callList;
 
-  // Sub-module tab state: 'daily' (Daily Calls) or 'followup' (Follow Up Calls)
-  const [activeSubTab, setActiveSubTab] = useState<'daily' | 'followup'>('daily');
+  // Sub-module tab state: 'daily' (Daily Calls), 'followup' (Follow Up Calls), or 'positive' (Positive Clients)
+  const [localSubTab, setLocalSubTab] = useState<'daily' | 'followup' | 'positive'>('daily');
+  const activeSubTab = propActiveSubTab ?? localSubTab;
+  const setActiveSubTab = (tab: 'daily' | 'followup' | 'positive') => {
+    if (onActiveSubTabChange) {
+      onActiveSubTabChange(tab);
+    } else {
+      setLocalSubTab(tab);
+    }
+  };
 
   // Daily Calls module states
   const [searchTerm, setSearchTerm] = useState('');
@@ -82,6 +95,53 @@ export default function CallManagement({
   const [dailyPageSize, setDailyPageSize] = useState<number>(25);
   const [followupPage, setFollowupPage] = useState<number>(1);
   const [followupPageSize, setFollowupPageSize] = useState<number>(12);
+  const [positivePage, setPositivePage] = useState<number>(1);
+  const [positivePageSize, setPositivePageSize] = useState<number>(12);
+  const [positiveSearchTerm, setPositiveSearchTerm] = useState<string>('');
+  const [positiveFilterMode, setPositiveFilterMode] = useState<'today' | 'custom' | 'all'>('today');
+  const [positiveFromDate, setPositiveFromDate] = useState<string>(getLocalTodayDateString());
+  const [positiveToDate, setPositiveToDate] = useState<string>(getLocalTodayDateString());
+  const [positiveSortField, setPositiveSortField] = useState<'created' | 'followup' | 'name'>('created');
+  const [positiveSortOrder, setPositiveSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [followupViewLayout, setFollowupViewLayout] = useState<'grid' | 'card'>('grid');
+  const [positiveViewLayout, setPositiveViewLayout] = useState<'grid' | 'card'>('grid');
+
+  // Export positive clients list to CSV
+  const handleExportPositive = () => {
+    if (positiveCallsFiltered.length === 0) {
+      alert('No positive clients found to export.');
+      return;
+    }
+
+    let filename = `positive-clients-export-${new Date().toISOString().split('T')[0]}.csv`;
+
+    const headers = ['Client Name', 'Number', 'Call Status', 'Follow-up Date', 'Interested Service', 'Employee Name', 'Notes', 'Created Date'];
+    const rows = positiveCallsFiltered.map(r => [
+      escapeCSVCell(r.clientName),
+      escapeCSVCell(r.clientNumber),
+      escapeCSVCell(r.callStatus),
+      escapeCSVCell(r.followupDate || 'N/A'),
+      escapeCSVCell(r.interestedService || 'N/A'),
+      escapeCSVCell(r.loggedBy),
+      escapeCSVCell(r.notes || ''),
+      escapeCSVCell(r.createdDate)
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Follow-up Quick-Update state
   const [updatingFollowupRecord, setUpdatingFollowupRecord] = useState<CallRecord | null>(null);
@@ -411,6 +471,47 @@ export default function CallManagement({
   const safeFollowupPage = Math.min(followupPage, followupTotalPages);
   const paginatedFollowupCalls = followUpCallsFiltered.slice((safeFollowupPage - 1) * followupPageSize, safeFollowupPage * followupPageSize);
 
+  // Positive clients logic
+  const positiveCallsAll = visibleCalls.filter(
+    (call) => call.callStatus === 'Positive'
+  );
+
+  const positiveCallsFiltered = positiveCallsAll.filter((call) => {
+    // Apply date filters
+    if (positiveFilterMode === 'today') {
+      if (call.followupDate !== getLocalTodayDateString()) return false;
+    } else if (positiveFilterMode === 'custom') {
+      if (!call.followupDate) return false;
+      if (positiveFromDate && call.followupDate < positiveFromDate) return false;
+      if (positiveToDate && call.followupDate > positiveToDate) return false;
+    }
+
+    if (!positiveSearchTerm) return true;
+    return (
+      call.clientName.toLowerCase().includes(positiveSearchTerm.toLowerCase()) ||
+      call.clientNumber.toLowerCase().includes(positiveSearchTerm.toLowerCase()) ||
+      (call.interestedService && call.interestedService.toLowerCase().includes(positiveSearchTerm.toLowerCase())) ||
+      (call.notes && call.notes.toLowerCase().includes(positiveSearchTerm.toLowerCase()))
+    );
+  }).sort((a, b) => {
+    let comparison = 0;
+    if (positiveSortField === 'created') {
+      comparison = parseRecordDate(a.createdDate).getTime() - parseRecordDate(b.createdDate).getTime();
+    } else if (positiveSortField === 'followup') {
+      const dateA = a.followupDate ? new Date(a.followupDate).getTime() : 0;
+      const dateB = b.followupDate ? new Date(b.followupDate).getTime() : 0;
+      comparison = dateA - dateB;
+    } else if (positiveSortField === 'name') {
+      comparison = a.clientName.localeCompare(b.clientName);
+    }
+    return positiveSortOrder === 'desc' ? -comparison : comparison;
+  });
+
+  const positiveTotalItems = positiveCallsFiltered.length;
+  const positiveTotalPages = Math.ceil(positiveTotalItems / positivePageSize) || 1;
+  const safePositivePage = Math.min(positivePage, positiveTotalPages);
+  const paginatedPositiveCalls = positiveCallsFiltered.slice((safePositivePage - 1) * positivePageSize, safePositivePage * positivePageSize);
+
   const getStatusBadgeStyle = (status: CallStatus) => {
     switch (status) {
       case 'Interested':
@@ -423,7 +524,8 @@ export default function CallManagement({
         return 'bg-rose-50 text-rose-700 border-rose-200';
       case 'Closed':
         return 'bg-purple-50 text-purple-700 border-purple-200';
-      case 'Rejected':
+      case 'Positive':
+        return 'bg-cyan-50 text-cyan-700 border-cyan-200';
       case 'Not Interested':
         return 'bg-red-50 text-red-700 border-red-200';
       case 'Not Answered':
@@ -445,7 +547,7 @@ export default function CallManagement({
   const handleSaveFollowupUpdate = () => {
     if (!updatingFollowupRecord) return;
 
-    const needsDate = updateStatus === 'Interested' || updateStatus === 'Call Back';
+    const needsDate = updateStatus === 'Interested' || updateStatus === 'Call Back' || updateStatus === 'Positive';
     if (needsDate && !updateFollowupDate) {
       setUpdateError('A followup date is required for this status.');
       return;
@@ -553,6 +655,24 @@ export default function CallManagement({
           {followUpCallsAll.filter(c => c.followupDate === getLocalTodayDateString()).length > 0 && (
             <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
               {followUpCallsAll.filter(c => c.followupDate === getLocalTodayDateString()).length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('positive')}
+          className={`pb-3 text-sm font-semibold transition-all relative cursor-pointer flex items-center gap-2 ${
+            activeSubTab === 'positive'
+              ? 'text-slate-900 border-b-2 border-slate-900'
+              : 'text-slate-400 hover:text-slate-600'
+          }`}
+          id="btn-subtab-positive"
+        >
+          <HeartHandshake className="w-4.5 h-4.5 text-cyan-500" />
+          <span>Positive Clients</span>
+          {positiveCallsAll.length > 0 && (
+            <span className="bg-cyan-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
+              {positiveCallsAll.length}
             </span>
           )}
         </button>
@@ -667,7 +787,7 @@ export default function CallManagement({
                     <option value="Not Reachable">Not Reachable</option>
                     <option value="Not Interested">Not Interested</option>
                     <option value="Closed">Closed</option>
-                    <option value="Rejected">Rejected</option>
+                    <option value="Positive">Positive</option>
                   </select>
 
                   <select
@@ -907,7 +1027,7 @@ export default function CallManagement({
               />
             </div>
           </motion.div>
-        ) : (
+        ) : activeSubTab === 'followup' ? (
           <motion.div
             key="followup-calls-subtab"
             initial={{ opacity: 0, y: 10 }}
@@ -981,9 +1101,41 @@ export default function CallManagement({
                   </div>
                 )}
 
+                {/* View Layout Toggle */}
+                <div className="bg-slate-100 p-0.5 rounded-lg flex items-center border border-slate-200/40 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setFollowupViewLayout('grid')}
+                    className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                      followupViewLayout === 'grid'
+                        ? 'bg-white text-slate-900 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    title="Grid (Table) View"
+                    id="btn-followup-layout-grid"
+                  >
+                    <Table className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>Grid View</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFollowupViewLayout('card')}
+                    className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                      followupViewLayout === 'card'
+                        ? 'bg-white text-slate-900 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    title="Card View"
+                    id="btn-followup-layout-card"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>Card View</span>
+                  </button>
+                </div>
+
                 <button
                   onClick={handleExportFollowups}
-                  className="py-1.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                  className="py-1.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs shrink-0"
                   id="btn-followup-export"
                   title="Export follow-ups to CSV"
                 >
@@ -993,30 +1145,137 @@ export default function CallManagement({
               </div>
             </div>
 
-            {/* Follow Up Grid list */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="followups-cards-grid">
-              {followUpCallsFiltered.length === 0 ? (
-                <div className="col-span-full bg-white border border-slate-200/85 rounded-2xl py-16 px-4 text-center text-slate-400" id="followups-empty-box">
-                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-50 border border-slate-100 mb-3 text-slate-350 animate-pulse">
-                    <Calendar className="w-5.5 h-5.5" />
-                  </div>
-                  <h4 className="font-semibold text-slate-900 text-sm">No follow-ups found</h4>
-                  <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-                    {followupViewMode === 'custom_range'
-                      ? `No clients are scheduled for a callback or marked interested between ${followupFromDate} and ${followupToDate}. Check another date range or click "Show All Pending".`
-                      : 'You do not have any pending follow-ups in the system right now.'}
-                  </p>
-                  {followupViewMode === 'custom_range' && (
-                    <button
-                      onClick={() => setFollowupViewMode('all')}
-                      className="mt-4 px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow-2xs transition-all cursor-pointer"
-                    >
-                      Show All Pending Follow-ups
-                    </button>
-                  )}
+            {/* Follow Up Grid / Card View Container */}
+            {followUpCallsFiltered.length === 0 ? (
+              <div className="bg-white border border-slate-200/85 rounded-2xl py-16 px-4 text-center text-slate-400" id="followups-empty-box">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-50 border border-slate-100 mb-3 text-slate-350 animate-pulse">
+                  <Calendar className="w-5.5 h-5.5" />
                 </div>
-              ) : (
-                paginatedFollowupCalls.map((call) => {
+                <h4 className="font-semibold text-slate-900 text-sm">No follow-ups found</h4>
+                <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                  {followupViewMode === 'custom_range'
+                    ? `No clients are scheduled for a callback or marked interested between ${followupFromDate} and ${followupToDate}. Check another date range or click "Show All Pending".`
+                    : 'You do not have any pending follow-ups in the system right now.'}
+                </p>
+                {followupViewMode === 'custom_range' && (
+                  <button
+                    onClick={() => setFollowupViewMode('all')}
+                    className="mt-4 px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold shadow-2xs transition-all cursor-pointer"
+                  >
+                    Show All Pending Follow-ups
+                  </button>
+                )}
+              </div>
+            ) : followupViewLayout === 'grid' ? (
+              /* Grid (Table) View for Followups */
+              <div className="bg-white border border-slate-200/85 rounded-2xl overflow-hidden shadow-xs" id="followups-table-grid-container">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse" id="followups-table-grid">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50/60 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        <th className="py-3 px-5">Client Profile</th>
+                        <th className="py-3 px-5">Status</th>
+                        <th className="py-3 px-5">Target Schedule</th>
+                        <th className="py-3 px-5">Interested Service</th>
+                        <th className="py-3 px-5">Outreach Notes</th>
+                        <th className="py-3 px-5">Agent Logger</th>
+                        <th className="py-3 px-5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-150">
+                      {paginatedFollowupCalls.map((call) => {
+                        const isToday = call.followupDate === getLocalTodayDateString();
+                        const statusBadgeStyle = getStatusBadgeStyle(call.callStatus);
+                        return (
+                          <tr key={call.id} className={`hover:bg-slate-50/50 transition-colors ${isToday ? 'bg-indigo-50/10' : ''}`} id={`followup-row-${call.id}`}>
+                            {/* Client Profile */}
+                            <td className="py-3 px-5">
+                              <div>
+                                <span className="font-bold text-slate-900 text-sm block leading-snug">
+                                  {call.clientName}
+                                </span>
+                                <span className="text-xs text-slate-500 font-mono mt-0.5 block">
+                                  {call.clientNumber}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Status */}
+                            <td className="py-3 px-5">
+                              <span className={`inline-flex items-center gap-1 border px-2 py-0.5 rounded-full text-[11px] font-semibold ${statusBadgeStyle}`}>
+                                {call.callStatus}
+                              </span>
+                            </td>
+
+                            {/* Target Schedule */}
+                            <td className="py-3 px-5">
+                              <div className="flex items-center gap-1.5 font-medium font-mono text-slate-700">
+                                <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+                                <span>{call.followupDate || '—'}</span>
+                                {isToday && (
+                                  <span className="bg-indigo-500 text-white text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ml-1 animate-pulse">
+                                    Today
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Service */}
+                            <td className="py-3 px-5 text-xs font-semibold text-slate-700">
+                              <div className="flex items-center gap-1 text-slate-600 truncate max-w-[150px]">
+                                <HeartHandshake className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                <span className="truncate" title={call.interestedService || 'N/A'}>
+                                  {call.interestedService || 'None Listed'}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Dialogue Notes */}
+                            <td className="py-3 px-5 text-xs text-slate-600 italic max-w-xs truncate" title={call.notes || ''}>
+                              {call.notes ? `"${call.notes}"` : 'No notes logged.'}
+                            </td>
+
+                            {/* Logged by */}
+                            <td className="py-3 px-5 text-xs text-slate-600 font-medium">
+                              {call.loggedBy}
+                            </td>
+
+                            {/* Actions */}
+                            <td className="py-3 px-5 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {call.callStatus === 'Interested' && (
+                                  <button
+                                    onClick={() => handleOpenCloseLead(call)}
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold shadow-3xs transition-all cursor-pointer flex items-center gap-1"
+                                    id={`grid-btn-close-lead-${call.id}`}
+                                    title="Close Lead"
+                                  >
+                                    <UserCheck className="w-3 h-3" />
+                                    <span>Close</span>
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleOpenUpdateFollowup(call)}
+                                  className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[11px] font-bold shadow-3xs transition-all cursor-pointer flex items-center gap-1"
+                                  id={`grid-btn-update-${call.id}`}
+                                  title="Update Details"
+                                >
+                                  <Edit3 className="w-3 h-3" />
+                                  <span>Update</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              /* Card View for Followups */
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="followups-cards-grid">
+                {paginatedFollowupCalls.map((call) => {
                   const isToday = call.followupDate === getLocalTodayDateString();
                   return (
                     <div
@@ -1108,9 +1367,9 @@ export default function CallManagement({
                       </div>
                     </div>
                   );
-                })
-              )}
-            </div>
+                })}
+              </div>
+            )}
 
             <div className="bg-white border border-slate-200/85 rounded-2xl overflow-hidden shadow-xs">
               <Pagination
@@ -1122,6 +1381,479 @@ export default function CallManagement({
                 onItemsPerPageChange={setFollowupPageSize}
                 pageSizeOptions={[6, 12, 24, 48]}
                 itemLabel="follow-ups"
+              />
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="positive-calls-subtab"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.15 }}
+            className="space-y-6"
+          >
+            {/* Header / Search Controls */}
+            <div className="bg-white border border-slate-200/85 rounded-2xl p-5 shadow-xs flex flex-col gap-4" id="positive-control-panel">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <HeartHandshake className="w-4.5 h-4.5 text-cyan-500" />
+                    <span>Positive Clients Repository</span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Manage contacts marked with Positive status. Convert them by closing the lead or update their log details.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                  {/* View Layout Toggle */}
+                  <div className="bg-slate-100 p-0.5 rounded-lg flex items-center border border-slate-200/40">
+                    <button
+                      type="button"
+                      onClick={() => setPositiveViewLayout('grid')}
+                      className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                        positiveViewLayout === 'grid'
+                          ? 'bg-white text-slate-900 shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                      title="Grid (Table) View"
+                      id="btn-positive-layout-grid"
+                    >
+                      <Table className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Grid View</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPositiveViewLayout('card')}
+                      className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                        positiveViewLayout === 'card'
+                          ? 'bg-white text-slate-900 shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                      title="Card View"
+                      id="btn-positive-layout-card"
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Card View</span>
+                    </button>
+                  </div>
+
+                  {/* Export Button */}
+                  <button
+                    onClick={handleExportPositive}
+                    className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+                    id="btn-export-positive"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                    <span>Export Filtered ({positiveCallsFiltered.length})</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Filters & Search Row */}
+              <div className="pt-4 border-t border-slate-100 flex flex-col xl:flex-row xl:items-center justify-between gap-4" id="positive-filters-bench">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-widest mr-1">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-slate-450" />
+                    <span>Filter:</span>
+                  </div>
+
+                  {/* Filter segmented buttons next to each other */}
+                  <div className="flex bg-slate-100 p-1 rounded-xl" id="positive-filter-tabs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPositiveFilterMode('today');
+                        setPositivePage(1);
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        positiveFilterMode === 'today'
+                          ? 'bg-white text-slate-900 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                      id="btn-filter-positive-today"
+                    >
+                      Today's Follow-up
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPositiveFilterMode('custom');
+                        setPositivePage(1);
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        positiveFilterMode === 'custom'
+                          ? 'bg-white text-slate-900 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                      id="btn-filter-positive-custom"
+                    >
+                      Custom Date Option
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPositiveFilterMode('all');
+                        setPositivePage(1);
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        positiveFilterMode === 'all'
+                          ? 'bg-white text-slate-900 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                      id="btn-filter-positive-all"
+                    >
+                      All Positive
+                    </button>
+                  </div>
+
+                  {/* From & To Date for Custom range */}
+                  {positiveFilterMode === 'custom' && (
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 bg-slate-50 border border-slate-200/60 rounded-xl p-1.5 animate-fade-in" id="positive-custom-date-container">
+                      <div className="flex items-center gap-1.5 px-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">From:</span>
+                        <input
+                          type="date"
+                          value={positiveFromDate}
+                          onChange={(e) => {
+                            setPositiveFromDate(e.target.value);
+                            setPositivePage(1);
+                          }}
+                          className="text-xs font-bold text-slate-700 bg-transparent border-0 focus:outline-hidden p-0 cursor-pointer"
+                        />
+                      </div>
+                      <div className="hidden sm:block text-slate-300">|</div>
+                      <div className="flex items-center gap-1.5 px-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">To:</span>
+                        <input
+                          type="date"
+                          value={positiveToDate}
+                          onChange={(e) => {
+                            setPositiveToDate(e.target.value);
+                            setPositivePage(1);
+                          }}
+                          className="text-xs font-bold text-slate-700 bg-transparent border-0 focus:outline-hidden p-0 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Search Bar */}
+                <div className="relative w-full xl:w-64">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search positive clients..."
+                    value={positiveSearchTerm}
+                    onChange={(e) => {
+                      setPositiveSearchTerm(e.target.value);
+                      setPositivePage(1);
+                    }}
+                    className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white transition-all outline-hidden focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 font-semibold"
+                  />
+                </div>
+              </div>
+
+              {/* Sort features next to each other */}
+              <div className="pt-3.5 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3" id="positive-sort-bench">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-widest mr-1">
+                    <ArrowUpDown className="w-3.5 h-3.5 text-slate-450" />
+                    <span>Sort By:</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPositiveSortField('created');
+                      setPositivePage(1);
+                    }}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      positiveSortField === 'created'
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                    id="btn-sort-positive-created"
+                  >
+                    Created Date
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPositiveSortField('followup');
+                      setPositivePage(1);
+                    }}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      positiveSortField === 'followup'
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                    id="btn-sort-positive-followup"
+                  >
+                    Follow-up Date
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPositiveSortField('name');
+                      setPositivePage(1);
+                    }}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      positiveSortField === 'name'
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                    id="btn-sort-positive-name"
+                  >
+                    Client Name
+                  </button>
+                </div>
+
+                {/* Sort Order buttons side-by-side */}
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl shrink-0" id="positive-sort-order-toggle">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPositiveSortOrder('asc');
+                      setPositivePage(1);
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      positiveSortOrder === 'asc'
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    id="btn-sort-order-asc"
+                  >
+                    Ascending
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPositiveSortOrder('desc');
+                      setPositivePage(1);
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      positiveSortOrder === 'desc'
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    id="btn-sort-order-desc"
+                  >
+                    Descending
+                  </button>
+                </div>
+              </div>
+            </div>
+
+                        {/* Positive Clients Grid / Card View Container */}
+            {positiveCallsFiltered.length === 0 ? (
+              <div className="bg-white border border-slate-200/85 rounded-2xl py-16 px-4 text-center text-slate-400" id="positive-empty-box">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-cyan-50 border border-cyan-100 mb-3 text-cyan-500 animate-pulse">
+                  <HeartHandshake className="w-5.5 h-5.5" />
+                </div>
+                <h4 className="font-semibold text-slate-900 text-sm">No positive clients found</h4>
+                <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                  Clients marked as "Positive" in call logs or updates will automatically appear here.
+                </p>
+              </div>
+            ) : positiveViewLayout === 'grid' ? (
+              /* Grid (Table) View for Positive Clients */
+              <div className="bg-white border border-slate-200/85 rounded-2xl overflow-hidden shadow-xs" id="positive-table-grid-container">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse" id="positive-table-grid">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50/60 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        <th className="py-3 px-5">Client Profile</th>
+                        <th className="py-3 px-5">Status</th>
+                        <th className="py-3 px-5">Follow-up Date</th>
+                        <th className="py-3 px-5">Interested Service</th>
+                        <th className="py-3 px-5">Outreach Notes</th>
+                        <th className="py-3 px-5">Agent Logger</th>
+                        <th className="py-3 px-5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-150">
+                      {paginatedPositiveCalls.map((call) => {
+                        const statusBadgeStyle = getStatusBadgeStyle(call.callStatus);
+                        return (
+                          <tr key={call.id} className="hover:bg-slate-50/50 transition-colors" id={`positive-row-${call.id}`}>
+                            {/* Client Profile */}
+                            <td className="py-3 px-5">
+                              <div>
+                                <span className="font-bold text-slate-900 text-sm block leading-snug">
+                                  {call.clientName}
+                                </span>
+                                <span className="text-xs text-slate-500 font-mono mt-0.5 block">
+                                  {call.clientNumber}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Status */}
+                            <td className="py-3 px-5">
+                              <span className={`inline-flex items-center gap-1 border px-2 py-0.5 rounded-full text-[11px] font-semibold ${statusBadgeStyle}`}>
+                                {call.callStatus}
+                              </span>
+                            </td>
+
+                            {/* Follow-up Date */}
+                            <td className="py-3 px-5">
+                              <div className="flex items-center gap-1.5 font-medium font-mono text-slate-700">
+                                <Calendar className="w-3.5 h-3.5 text-cyan-500" />
+                                <span>{call.followupDate || '—'}</span>
+                              </div>
+                            </td>
+
+                            {/* Service */}
+                            <td className="py-3 px-5 text-xs font-semibold text-slate-700">
+                              <div className="flex items-center gap-1 text-slate-600 truncate max-w-[150px]">
+                                <HeartHandshake className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                <span className="truncate" title={call.interestedService || 'N/A'}>
+                                  {call.interestedService || 'None Listed'}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Dialogue Notes */}
+                            <td className="py-3 px-5 text-xs text-slate-600 italic max-w-xs truncate" title={call.notes || ''}>
+                              {call.notes ? `"${call.notes}"` : 'No notes logged.'}
+                            </td>
+
+                            {/* Logged by */}
+                            <td className="py-3 px-5 text-xs text-slate-600 font-medium">
+                              {call.loggedBy}
+                            </td>
+
+                            {/* Actions */}
+                            <td className="py-3 px-5 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => handleOpenCloseLead(call)}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold shadow-3xs transition-all cursor-pointer flex items-center gap-1"
+                                  id={`grid-positive-btn-close-${call.id}`}
+                                  title="Close Lead"
+                                >
+                                  <UserCheck className="w-3 h-3" />
+                                  <span>Close</span>
+                                </button>
+                                <button
+                                  onClick={() => handleOpenUpdateFollowup(call)}
+                                  className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[11px] font-bold shadow-3xs transition-all cursor-pointer flex items-center gap-1"
+                                  id={`grid-positive-btn-update-${call.id}`}
+                                  title="Update Details"
+                                >
+                                  <Edit3 className="w-3 h-3" />
+                                  <span>Update</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              /* Card View of Positive Clients */
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="positive-cards-grid">
+                {paginatedPositiveCalls.map((call) => {
+                  return (
+                    <div
+                      key={call.id}
+                      className="bg-white border border-cyan-100/80 rounded-2xl p-5 shadow-xs flex flex-col justify-between transition-all hover:shadow-xs relative bg-cyan-50/5"
+                      id={`positive-card-${call.id}`}
+                    >
+                      <div className="space-y-4">
+                        {/* Header Client Profiling */}
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <span className="text-xs font-semibold text-cyan-500 uppercase tracking-widest block font-mono">Positive Lead</span>
+                            <h4 className="font-bold text-slate-900 text-base mt-0.5">{call.clientName}</h4>
+                            <span className="text-xs text-slate-600 font-mono block mt-1">{call.clientNumber}</span>
+                          </div>
+
+                          <span className={`inline-flex items-center gap-1 border px-2 py-0.5 rounded-full text-[11px] font-semibold mt-1 shrink-0 ${getStatusBadgeStyle(call.callStatus)}`}>
+                            {call.callStatus}
+                          </span>
+                        </div>
+
+                        {/* Middle pipeline schedule data */}
+                        <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100 text-xs">
+                          <div className="space-y-1">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Follow-up Date</span>
+                            <div className="flex items-center gap-1.5 font-medium font-mono text-slate-700 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                              <Calendar className="w-3.5 h-3.5 text-cyan-500" />
+                              <span>{call.followupDate || '—'}</span>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Assigned Service</span>
+                            <div className="flex items-center gap-1.5 font-medium text-slate-700 bg-slate-50 px-2 py-1 rounded border border-slate-100 truncate">
+                              <HeartHandshake className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                              <span className="truncate" title={call.interestedService || 'N/A'}>
+                                {call.interestedService || 'None Listed'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Dialogue previous logs */}
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/40 space-y-1">
+                          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block flex items-center gap-1">
+                            <MessageSquare className="w-3 h-3 text-slate-400" />
+                            <span>Client Outreach Dialogue Notes</span>
+                          </span>
+                          <p className="text-xs text-slate-600 italic leading-relaxed">
+                            "{call.notes || 'No notes logged for this call.'}"
+                          </p>
+                        </div>
+
+                        {/* Assigned staff member info */}
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-450 pt-1">
+                          <Bookmark className="w-3.5 h-3.5 text-slate-350 shrink-0" />
+                          <span>Logged by: <span className="font-semibold text-slate-600">{call.loggedBy}</span></span>
+                        </div>
+                      </div>
+
+                      {/* Action buttons row */}
+                      <div className="flex items-center justify-end gap-2.5 mt-5 pt-3.5 border-t border-slate-150/60">
+                        <button
+                          onClick={() => handleOpenCloseLead(call)}
+                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-2xs transition-all cursor-pointer flex items-center gap-1.5"
+                          id={`btn-close-lead-${call.id}`}
+                        >
+                          <UserCheck className="w-3.5 h-3.5" />
+                          <span>Close Lead</span>
+                        </button>
+                        
+                        <button
+                          onClick={() => handleOpenUpdateFollowup(call)}
+                          className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-2xs transition-all cursor-pointer flex items-center gap-1.5"
+                          id={`btn-update-followup-${call.id}`}
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Update Details</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="bg-white border border-slate-200/85 rounded-2xl overflow-hidden shadow-xs">
+              <Pagination
+                currentPage={safePositivePage}
+                totalPages={positiveTotalPages}
+                totalItems={positiveTotalItems}
+                itemsPerPage={positivePageSize}
+                onPageChange={setPositivePage}
+                onItemsPerPageChange={setPositivePageSize}
+                pageSizeOptions={[6, 12, 24, 48]}
+                itemLabel="positive clients"
               />
             </div>
           </motion.div>
@@ -1194,12 +1926,12 @@ export default function CallManagement({
                       <option value="Not Reachable">Not Reachable</option>
                       <option value="Not Interested">Not Interested</option>
                       <option value="Closed">Closed</option>
-                      <option value="Rejected">Rejected</option>
+                      <option value="Positive">Positive</option>
                     </select>
                   </div>
 
                   {/* Conditional Follow-up date picker */}
-                  {(updateStatus === 'Interested' || updateStatus === 'Call Back') && (
+                  {(updateStatus === 'Interested' || updateStatus === 'Call Back' || updateStatus === 'Positive') && (
                     <div className="space-y-1.5 animate-fade-in">
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">
                         New Follow-up Date

@@ -202,7 +202,7 @@ export default function ClientLookup({
   // Execute Follow-up Save
   const handleSaveFollowup = () => {
     if (!onSaveCall) return;
-    const needsDate = followupStatus === 'Interested' || followupStatus === 'Call Back';
+    const needsDate = followupStatus === 'Interested' || followupStatus === 'Call Back' || followupStatus === 'Positive';
     if (needsDate && !followupDateInput) {
       setFollowupError('Please specify a valid follow-up date.');
       return;
@@ -460,7 +460,7 @@ export default function ClientLookup({
                           'Not Answered': 'bg-slate-100 text-slate-800 border-slate-200',
                           'Not Reachable': 'bg-slate-100 text-slate-800 border-slate-200',
                           'Not Interested': 'bg-red-100 text-red-800 border-red-200',
-                          'Rejected': 'bg-red-100 text-red-800 border-red-200',
+                          'Positive': 'bg-cyan-100 text-cyan-800 border-cyan-200',
                         };
                         const badgeStyle = statusColors[call.callStatus] || 'bg-slate-100 text-slate-800 border-slate-200';
                         return (
@@ -1012,12 +1012,12 @@ export default function ClientLookup({
                       <option value="Not Reachable">Not Reachable</option>
                       <option value="Not Interested">Not Interested</option>
                       <option value="Closed">Closed</option>
-                      <option value="Rejected">Rejected</option>
+                      <option value="Positive">Positive</option>
                     </select>
                   </div>
 
                   {/* Follow-up Date */}
-                  {(followupStatus === 'Interested' || followupStatus === 'Call Back') && (
+                  {(followupStatus === 'Interested' || followupStatus === 'Call Back' || followupStatus === 'Positive') && (
                     <div className="space-y-1.5 animate-fade-in">
                       <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide">
                         Next Follow-up Date <span className="text-red-500">*</span>

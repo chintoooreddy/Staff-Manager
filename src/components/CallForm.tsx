@@ -89,7 +89,7 @@ export default function CallForm({ onClose, onSave, editingCall, staffList, curr
     }
 
     // Conditional requirements check 
-    const needsFollowup = callStatus === 'Interested' || callStatus === 'Call Back';
+    const needsFollowup = callStatus === 'Interested' || callStatus === 'Call Back' || callStatus === 'Positive';
     if (needsFollowup && !followupDate) {
       setErrorCode('A followup date is strictly required for this call status.');
       return;
@@ -113,7 +113,7 @@ export default function CallForm({ onClose, onSave, editingCall, staffList, curr
     });
   };
 
-  const needsFollowup = callStatus === 'Interested' || callStatus === 'Call Back';
+  const needsFollowup = callStatus === 'Interested' || callStatus === 'Call Back' || callStatus === 'Positive';
   const needsService = callStatus === 'Interested';
 
   return (
@@ -214,7 +214,7 @@ export default function CallForm({ onClose, onSave, editingCall, staffList, curr
                   Call Status <span className="text-rose-500">*</span>
                 </label>
                 <div className="grid grid-cols-2 gap-2" id="status-selection-box">
-                  {(['Interested', 'Call Back', 'Not Answered', 'Busy', 'Not Reachable', 'Not Interested', 'Rejected'] as CallStatus[]).map((status) => {
+                  {(['Interested', 'Call Back', 'Not Answered', 'Busy', 'Not Reachable', 'Not Interested', 'Positive'] as CallStatus[]).map((status) => {
                     let activeStyle = '';
                     switch (status) {
                       case 'Interested':
@@ -235,8 +235,8 @@ export default function CallForm({ onClose, onSave, editingCall, staffList, curr
                       case 'Not Interested':
                         activeStyle = 'bg-slate-100 text-slate-700 border-slate-400';
                         break;
-                      case 'Rejected':
-                        activeStyle = 'bg-red-50 text-red-800 border-red-400';
+                      case 'Positive':
+                        activeStyle = 'bg-cyan-50 text-cyan-800 border-cyan-400 ring-2 ring-cyan-50';
                         break;
                     }
 
@@ -247,7 +247,7 @@ export default function CallForm({ onClose, onSave, editingCall, staffList, curr
                         onClick={() => {
                           setCallStatus(status);
                           // Clear conditionally rendered inputs if not appropriate
-                          if (status !== 'Interested' && status !== 'Call Back') {
+                          if (status !== 'Interested' && status !== 'Call Back' && status !== 'Positive') {
                             setFollowupDate('');
                           }
                         }}

@@ -54,6 +54,15 @@ export default function AnalyticsDashboard({ currentEmail, staffList, callList, 
   const safePage = Math.min(page, totalPages);
   const paginatedLoggers = allLoggersList.slice((safePage - 1) * pageSize, safePage * pageSize);
 
+  // Helper to get today's date string in YYYY-MM-DD format
+  const getLocalTodayISOString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Helper to calculate daily metrics for a specific logger name
   const getLoggerDailyStats = (loggerName: string) => {
     // New/Initial calls are those logged today (their original created date is today)
@@ -66,6 +75,11 @@ export default function AnalyticsDashboard({ currentEmail, staffList, callList, 
       (c) => c.loggedBy === loggerName && c.followupCompletedDate && c.followupCompletedDate.startsWith(todayDateString)
     ).length;
 
+    // All Current Day Positives (callStatus === 'Positive' and createdDate starts with today's date string)
+    const totalPositivesToday = callList.filter(
+      (c) => c.loggedBy === loggerName && c.callStatus === 'Positive' && c.createdDate && c.createdDate.startsWith(todayDateString)
+    ).length;
+
     // Total dials today is the sum of new calls made today and follow-up actions completed today
     const totalToday = totalNewCallsToday + totalFollowupsToday;
 
@@ -73,16 +87,8 @@ export default function AnalyticsDashboard({ currentEmail, staffList, callList, 
       totalToday,
       totalFollowupsToday,
       totalNewCallsToday,
+      totalPositivesToday,
     };
-  };
-
-  // Helper to get today's date string in YYYY-MM-DD format
-  const getLocalTodayISOString = () => {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
   };
 
   // Get active follow-ups for the selected user (any call status "Interested" or "Call Back" logged by this user)
@@ -330,6 +336,7 @@ export default function AnalyticsDashboard({ currentEmail, staffList, callList, 
                         <th className="py-2.5 px-4">Staff Agent Name</th>
                         <th className="py-2.5 px-3 text-center">New Calls</th>
                         <th className="py-2.5 px-3 text-center">Followups</th>
+                        <th className="py-2.5 px-3 text-center">Positives Today</th>
                         <th className="py-2.5 px-4 text-right font-semibold text-slate-900">Total Calls Today</th>
                       </tr>
                     </thead>
@@ -375,6 +382,17 @@ export default function AnalyticsDashboard({ currentEmail, staffList, callList, 
                               {stats.totalFollowupsToday > 0 ? (
                                 <span className="inline-flex items-center justify-center px-1.5 py-0.2 rounded-full bg-emerald-50 text-emerald-700 font-mono text-[11px] font-semibold border border-emerald-100">
                                   {stats.totalFollowupsToday}
+                                </span>
+                              ) : (
+                                <span className="text-slate-350 font-mono text-[11px]">—</span>
+                              )}
+                            </td>
+
+                            {/* Total Positives Today */}
+                            <td className="py-2 px-3 text-center">
+                              {stats.totalPositivesToday > 0 ? (
+                                <span className="inline-flex items-center justify-center px-1.5 py-0.2 rounded-full bg-cyan-50 text-cyan-700 font-mono text-[11px] font-semibold border border-cyan-100">
+                                  {stats.totalPositivesToday}
                                 </span>
                               ) : (
                                 <span className="text-slate-350 font-mono text-[11px]">—</span>

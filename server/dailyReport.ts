@@ -81,13 +81,13 @@ export async function generateAndSendDailyReport(options: {
 
     // Calculate Summary Metrics
     const totalCalls = todayCalls.length;
-    const connectedCalls = todayCalls.filter(c => ['Interested', 'Call Back', 'Closed', 'Rejected', 'Not Interested'].includes(c.callStatus)).length;
+    const connectedCalls = todayCalls.filter(c => ['Interested', 'Call Back', 'Closed', 'Positive', 'Not Interested'].includes(c.callStatus)).length;
     const notConnectedCalls = todayCalls.filter(c => ['Not Answered', 'Busy', 'Not Reachable'].includes(c.callStatus)).length;
     const interestedCalls = todayCalls.filter(c => c.callStatus === 'Interested').length;
     const followupsCalls = todayCalls.filter(c => c.callStatus === 'Call Back').length;
     const convertedCalls = todayCalls.filter(c => c.callStatus === 'Closed').length;
     const notInterestedCalls = todayCalls.filter(c => c.callStatus === 'Not Interested').length;
-    const rejectedCalls = todayCalls.filter(c => c.callStatus === 'Rejected').length;
+    const positiveCalls = todayCalls.filter(c => c.callStatus === 'Positive').length;
     const uniqueStaff = new Set(todayCalls.map(c => c.loggedBy).filter(Boolean));
     const totalStaffWorked = uniqueStaff.size;
 
@@ -99,7 +99,7 @@ export async function generateAndSendDailyReport(options: {
       followupsCalls,
       convertedCalls,
       notInterestedCalls,
-      rejectedCalls,
+      rejectedCalls: positiveCalls,
       totalStaffWorked
     };
 
@@ -253,8 +253,8 @@ export async function generateAndSendDailyReport(options: {
               <td style="padding: 10px 16px; border-bottom: 1px solid #f1f5f9; text-align: right; color: #64748b;">${notInterestedCalls}</td>
             </tr>
             <tr>
-              <td style="padding: 10px 16px; border-bottom: 1px solid #f1f5f9; color: #64748b;">Rejected</td>
-              <td style="padding: 10px 16px; border-bottom: 1px solid #f1f5f9; text-align: right; color: #64748b;">${rejectedCalls}</td>
+              <td style="padding: 10px 16px; border-bottom: 1px solid #f1f5f9; color: #0891b2;">Positive</td>
+              <td style="padding: 10px 16px; border-bottom: 1px solid #f1f5f9; text-align: right; color: #0891b2; font-weight: 600;">${positiveCalls}</td>
             </tr>
             <tr style="background-color: #f8fafc;">
               <td style="padding: 12px 16px; font-weight: 600; color: #334155;">Total Staff Worked Today</td>
@@ -267,7 +267,7 @@ export async function generateAndSendDailyReport(options: {
       </div>
     `;
 
-    const textBody = `Daily Call Report - ${todayDateString}\nTotal Calls: ${totalCalls}\nConnected: ${connectedCalls}\nNot Connected: ${notConnectedCalls}\nInterested: ${interestedCalls}\nFollow-ups: ${followupsCalls}\nConverted/Sales: ${convertedCalls}\nNot Interested: ${notInterestedCalls}\nRejected: ${rejectedCalls}\nTotal Staff Worked: ${totalStaffWorked}`;
+    const textBody = `Daily Call Report - ${todayDateString}\nTotal Calls: ${totalCalls}\nConnected: ${connectedCalls}\nNot Connected: ${notConnectedCalls}\nInterested: ${interestedCalls}\nFollow-ups: ${followupsCalls}\nConverted/Sales: ${convertedCalls}\nNot Interested: ${notInterestedCalls}\nPositive: ${positiveCalls}\nTotal Staff Worked: ${totalStaffWorked}`;
 
     const mailOptions = {
       from: `"${smtpSenderName}" <${smtpSenderEmail}>`,
