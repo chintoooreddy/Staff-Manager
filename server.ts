@@ -99,9 +99,36 @@ async function startServer() {
 
   app.use(express.json());
 
+  let lastPublishedUrl = "";
+
+  // Middleware to auto-detect and publish Backend APP URL when a request arrives from a .run.app domain
+  app.use((req, res, next) => {
+    const host = req.get("host");
+    if (host && (host.endsWith(".run.app") || host.includes("run.app") || host.includes("aistudio"))) {
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
+      const detectedUrl = `${protocol}://${host}`;
+      
+      if (detectedUrl !== lastPublishedUrl) {
+        lastPublishedUrl = detectedUrl;
+        setDoc(doc(serverDb, 'settings', 'app_config'), {
+          backendUrl: detectedUrl,
+          updatedAt: Date.now()
+        }, { merge: true })
+          .then(() => {
+            console.log(`Auto-detected and published backend URL to Firestore: ${detectedUrl}`);
+          })
+          .catch((err) => {
+            console.error("Failed to auto-publish backend URL to Firestore:", err);
+          });
+      }
+    }
+    next();
+  });
+
   // Publish APP_URL to Firestore so custom domains can resolve backend endpoints
   if (process.env.APP_URL) {
     try {
+      lastPublishedUrl = process.env.APP_URL;
       await setDoc(doc(serverDb, 'settings', 'app_config'), {
         backendUrl: process.env.APP_URL,
         updatedAt: Date.now()

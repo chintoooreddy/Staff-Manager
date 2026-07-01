@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Mail, Server, Shield, Lock, Eye, EyeOff, CheckCircle2, Send, RefreshCw, Trash2, AlertCircle, ExternalLink } from 'lucide-react';
-import { db, getApiUrl } from '../firebase';
+import { db, getApiUrl, setCachedBackendUrl } from '../firebase';
 import { doc, getDoc, setDoc, collection, onSnapshot, query, deleteDoc, getDocs } from 'firebase/firestore';
 import { SmtpConfig, SentEmail } from '../types';
 
@@ -33,6 +33,7 @@ function cleanObj(obj: Record<string, any>): Record<string, any> {
 export default function SmtpConfiguration() {
   const [config, setConfig] = useState<SmtpConfig>(DEFAULT_SMTP);
   const [sentEmails, setSentEmails] = useState<SentEmail[]>([]);
+  const [backendUrl, setBackendUrl] = useState<string>('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -52,7 +53,7 @@ export default function SmtpConfiguration() {
       try { setSentEmails(JSON.parse(localLogs)); } catch {}
     }
 
-    // 2. Fetch SMTP config from Firestore
+    // 2. Fetch SMTP config and App config from Firestore
     const fetchConfig = async () => {
       try {
         const docRef = doc(db, 'settings', 'smtp_config');
@@ -65,6 +66,17 @@ export default function SmtpConfiguration() {
           // Initialize default in DB
           await setDoc(docRef, cleanObj(DEFAULT_SMTP)).catch(() => {});
           localStorage.setItem('portal_smtp_config', JSON.stringify(DEFAULT_SMTP));
+        }
+
+        // Fetch backendUrl config
+        const appRef = doc(db, 'settings', 'app_config');
+        const appSnap = await getDoc(appRef);
+        if (appSnap.exists()) {
+          const data = appSnap.data();
+          if (data && data.backendUrl) {
+            setBackendUrl(data.backendUrl);
+            setCachedBackendUrl(data.backendUrl);
+          }
         }
       } catch (err) {
         console.error('Error fetching SMTP config:', err);
@@ -109,6 +121,15 @@ export default function SmtpConfiguration() {
     try {
       localStorage.setItem('portal_smtp_config', JSON.stringify(config));
       await setDoc(doc(db, 'settings', 'smtp_config'), cleanObj(config));
+      
+      // Save backendUrl to Firestore
+      const cleanBackendUrl = backendUrl.trim();
+      await setDoc(doc(db, 'settings', 'app_config'), {
+        backendUrl: cleanBackendUrl,
+        updatedAt: Date.now()
+      }, { merge: true });
+      setCachedBackendUrl(cleanBackendUrl);
+
       setStatusMessage({ text: 'SMTP Gateway Configuration saved successfully!', type: 'success' });
       setTimeout(() => setStatusMessage(null), 4000);
     } catch (err) {
@@ -373,6 +394,31 @@ export default function SmtpConfiguration() {
                 <option value="None">None (Insecure)</option>
               </select>
             </div>
+          </div>
+
+          <div className="pt-6 mt-4 border-t border-slate-100">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2 mb-2">
+              <Server className="w-4 h-4 text-indigo-600" />
+              <span>Backend API Server Endpoint (For Custom Domains)</span>
+            </h3>
+            <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+              Required only if you are accessing this application on a custom domain/external hosting where the backend Node server doesn't run natively. Enter your Cloud Run backend URL (e.g., <code>https://ais-dev-...run.app</code>).
+            </p>
+            <div className="relative">
+              <input
+                type="url"
+                placeholder="https://ais-dev-xxxx.run.app"
+                value={backendUrl}
+                onChange={(e) => setBackendUrl(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none transition-all"
+              />
+            </div>
+            {window.location.hostname !== 'localhost' && !window.location.hostname.endsWith('.run.app') && !backendUrl && (
+              <div className="mt-2 text-amber-600 flex items-center gap-1.5 text-xs">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>Custom domain detected, but no Backend URL configured! API calls may return HTML 404 errors.</span>
+              </div>
+            )}
           </div>
         </div>
 

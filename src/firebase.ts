@@ -7,10 +7,24 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
 export const auth = getAuth();
 
+let cachedBackendUrl: string | null = null;
+
+export function setCachedBackendUrl(url: string | null) {
+  if (url) {
+    cachedBackendUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+  } else {
+    cachedBackendUrl = null;
+  }
+}
+
 export async function getApiUrl(path: string): Promise<string> {
   const hostname = window.location.hostname;
   if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.run.app')) {
     return path;
+  }
+
+  if (cachedBackendUrl) {
+    return `${cachedBackendUrl}${path}`;
   }
 
   try {
@@ -20,6 +34,7 @@ export async function getApiUrl(path: string): Promise<string> {
       const data = docSnap.data();
       if (data && data.backendUrl) {
         const baseUrl = data.backendUrl.endsWith('/') ? data.backendUrl.slice(0, -1) : data.backendUrl;
+        cachedBackendUrl = baseUrl;
         return `${baseUrl}${path}`;
       }
     }
