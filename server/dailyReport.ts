@@ -1,6 +1,7 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
 import nodemailer from 'nodemailer';
+import dns from 'dns';
 import * as XLSX from 'xlsx';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -187,13 +188,24 @@ export async function generateAndSendDailyReport(options: {
     const transporter = nodemailer.createTransport({
       host: smtpHost,
       port: smtpPort,
-      secure: smtpSecure,
+      secure: smtpPort === 465,
       auth: {
         user: smtpUsername,
         pass: smtpPassword
       },
-      tls: { rejectUnauthorized: false }
-    });
+      tls: {
+        rejectUnauthorized: false,
+        minVersion: "TLSv1.2"
+      },
+      connectionTimeout: 20000,
+      greetingTimeout: 20000,
+      socketTimeout: 30000,
+      lookup: (hostname: string, options: any, callback: any) => {
+        dns.lookup(hostname, { family: 4 }, callback);
+      },
+      debug: true,
+      logger: true
+    } as any);
 
     // 7. Prepare Email Contents
     const emailSubject = `Daily Call Report - ${dayStr} ${monthStr} ${yearStr}`;

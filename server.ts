@@ -3,6 +3,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import nodemailer from "nodemailer";
+import dns from "dns";
 import cron from "node-cron";
 import { generateAndSendDailyReport, serverDb } from "./server/dailyReport";
 import { doc, getDoc, setDoc, collection, getDocs, query, limit } from "firebase/firestore";
@@ -106,7 +107,8 @@ async function startServer() {
         return res.status(400).json({ success: false, error: "Missing SMTP Password. Please enter your password or App Password." });
       }
 
-      const secure = config.encryption === 'SSL' || config.port === 465;
+      // For implicit SSL/TLS, secure must be true only for port 465. Other ports use STARTTLS (secure: false).
+      const secure = config.port === 465;
       const transporter = nodemailer.createTransport({
         host: config.host,
         port: config.port,
@@ -116,9 +118,18 @@ async function startServer() {
           pass: config.password,
         },
         tls: {
-          rejectUnauthorized: false
-        }
-      });
+          rejectUnauthorized: false,
+          minVersion: "TLSv1.2"
+        },
+        connectionTimeout: 20000,
+        greetingTimeout: 20000,
+        socketTimeout: 30000,
+        lookup: (hostname: string, options: any, callback: any) => {
+          dns.lookup(hostname, { family: 4 }, callback);
+        },
+        debug: true,
+        logger: true
+      } as any);
 
       await transporter.verify();
       res.json({
@@ -151,7 +162,8 @@ async function startServer() {
         });
       }
 
-      const secure = config.encryption === 'SSL' || config.port === 465;
+      // For implicit SSL/TLS, secure must be true only for port 465. Other ports use STARTTLS (secure: false).
+      const secure = config.port === 465;
       const transporter = nodemailer.createTransport({
         host: config.host,
         port: config.port,
@@ -161,9 +173,18 @@ async function startServer() {
           pass: config.password,
         },
         tls: {
-          rejectUnauthorized: false
-        }
-      });
+          rejectUnauthorized: false,
+          minVersion: "TLSv1.2"
+        },
+        connectionTimeout: 20000,
+        greetingTimeout: 20000,
+        socketTimeout: 30000,
+        lookup: (hostname: string, options: any, callback: any) => {
+          dns.lookup(hostname, { family: 4 }, callback);
+        },
+        debug: true,
+        logger: true
+      } as any);
 
       const mailOptions = {
         from: `"${config.senderName}" <${config.senderEmail}>`,
