@@ -71,7 +71,7 @@ export default function CallManagement({
 
   // Export module state
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [exportRange, setExportRange] = useState<'Today' | 'Week' | 'Month' | 'Custom'>('Today');
+  const [exportRange, setExportRange] = useState<'Today' | 'Week' | 'Month' | 'Custom' | 'All'>('Today');
   const [exportStartDate, setExportStartDate] = useState('');
   const [exportEndDate, setExportEndDate] = useState('');
   const [customFilename, setCustomFilename] = useState('');
@@ -101,8 +101,6 @@ export default function CallManagement({
   const [positiveFilterMode, setPositiveFilterMode] = useState<'today' | 'custom' | 'all'>('today');
   const [positiveFromDate, setPositiveFromDate] = useState<string>(getLocalTodayDateString());
   const [positiveToDate, setPositiveToDate] = useState<string>(getLocalTodayDateString());
-  const [positiveSortField, setPositiveSortField] = useState<'created' | 'followup' | 'name'>('created');
-  const [positiveSortOrder, setPositiveSortOrder] = useState<'asc' | 'desc'>('desc');
   const [followupViewLayout, setFollowupViewLayout] = useState<'grid' | 'card'>('grid');
   const [positiveViewLayout, setPositiveViewLayout] = useState<'grid' | 'card'>('grid');
 
@@ -233,6 +231,14 @@ export default function CallManagement({
 
   // Filter records specifically for export based on user selection
   const getExportRecords = (): CallRecord[] => {
+    if (exportRange === 'All') {
+      return visibleCalls.filter((call) => {
+        const matchesStatus = statusFilter === 'All' || call.callStatus === statusFilter;
+        const matchesStaff = staffFilter === 'All' || call.loggedBy === staffFilter;
+        return matchesStatus && matchesStaff;
+      });
+    }
+
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
     
@@ -273,6 +279,15 @@ export default function CallManagement({
 
   // String desc of current selection calendar scope
   const getRangeDescription = (): string => {
+    if (exportRange === 'All') {
+      const allExportCount = visibleCalls.filter((call) => {
+        const matchesStatus = statusFilter === 'All' || call.callStatus === statusFilter;
+        const matchesStaff = staffFilter === 'All' || call.loggedBy === staffFilter;
+        return matchesStatus && matchesStaff;
+      }).length;
+      return `All matching Status: "${statusFilter}" & User: "${staffFilter}" (${allExportCount} records)`;
+    }
+
     const formatMonthMap: { [key: number]: string } = {
       0: 'Jan', 1: 'Feb', 2: 'Mar', 3: 'Apr', 4: 'May', 5: 'Jun',
       6: 'Jul', 7: 'Aug', 8: 'Sep', 9: 'Oct', 10: 'Nov', 11: 'Dec'
@@ -494,17 +509,7 @@ export default function CallManagement({
       (call.notes && call.notes.toLowerCase().includes(positiveSearchTerm.toLowerCase()))
     );
   }).sort((a, b) => {
-    let comparison = 0;
-    if (positiveSortField === 'created') {
-      comparison = parseRecordDate(a.createdDate).getTime() - parseRecordDate(b.createdDate).getTime();
-    } else if (positiveSortField === 'followup') {
-      const dateA = a.followupDate ? new Date(a.followupDate).getTime() : 0;
-      const dateB = b.followupDate ? new Date(b.followupDate).getTime() : 0;
-      comparison = dateA - dateB;
-    } else if (positiveSortField === 'name') {
-      comparison = a.clientName.localeCompare(b.clientName);
-    }
-    return positiveSortOrder === 'desc' ? -comparison : comparison;
+    return parseRecordDate(b.createdDate).getTime() - parseRecordDate(a.createdDate).getTime();
   });
 
   const positiveTotalItems = positiveCallsFiltered.length;
@@ -839,30 +844,6 @@ export default function CallManagement({
                   )}
 
                   <button
-                    onClick={() => {
-                      const todayISO = new Date().toISOString().split('T')[0];
-                      if (dailyStartDate && dailyEndDate) {
-                        setExportStartDate(dailyStartDate);
-                        setExportEndDate(dailyEndDate);
-                        setExportRange('Custom');
-                      } else {
-                        setExportStartDate(todayISO);
-                        setExportEndDate(todayISO);
-                        setExportRange('Today');
-                      }
-                      setCustomFilename(`calls_export_${todayISO}.csv`);
-                      setExportError('');
-                      setIsExportModalOpen(true);
-                    }}
-                    className="py-1.5 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                    id="btn-call-export"
-                    title="Export calls to CSV"
-                  >
-                    <Download className="w-3.5 h-3.5 text-slate-500" />
-                    <span>Export Logs</span>
-                  </button>
-
-                  <button
                     onClick={onAddCall}
                     className="py-1.5 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                     id="btn-log-call-inline"
@@ -872,6 +853,104 @@ export default function CallManagement({
                   </button>
                 </div>
               </div>
+
+              {/* Inline Export Panel */}
+              <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col lg:flex-row gap-4 items-center justify-between" id="calls-export-bench">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:w-auto">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0">
+                    <FileSpreadsheet className="w-4 h-4 text-slate-500" />
+                    <span>Export Data:</span>
+                  </div>
+                  
+                  {/* Export range selector */}
+                  <div className="flex flex-wrap gap-1.5" id="export-range-selector">
+                    {(['Today', 'Week', 'Month', 'All', 'Custom'] as const).map((range) => (
+                      <button
+                        key={range}
+                        type="button"
+                        onClick={() => {
+                          setExportRange(range);
+                          setExportError('');
+                          if (range === 'Custom') {
+                            const todayISO = new Date().toISOString().split('T')[0];
+                            if (!exportStartDate) setExportStartDate(todayISO);
+                            if (!exportEndDate) setExportEndDate(todayISO);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          exportRange === range
+                            ? 'bg-slate-950 text-white shadow-2xs'
+                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                        }`}
+                        id={`btn-export-range-${range.toLowerCase()}`}
+                      >
+                        {range === 'Week' ? 'Last 7 Days' : range === 'Month' ? 'Last 30 Days' : range === 'All' ? 'All' : range}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Conditional Custom Date Inputs / Filename / Action Button */}
+                <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
+                  {exportRange === 'Custom' && (
+                    <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2 py-1">
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase">From:</span>
+                      <input
+                        type="date"
+                        value={exportStartDate}
+                        onChange={(e) => {
+                          setExportStartDate(e.target.value);
+                          setExportError('');
+                        }}
+                        className="text-xs font-semibold text-slate-700 bg-transparent border-0 focus:outline-hidden p-0 cursor-pointer"
+                        id="inline-export-start-date"
+                      />
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase ml-1">To:</span>
+                      <input
+                        type="date"
+                        value={exportEndDate}
+                        onChange={(e) => {
+                          setExportEndDate(e.target.value);
+                          setExportError('');
+                        }}
+                        className="text-xs font-semibold text-slate-700 bg-transparent border-0 focus:outline-hidden p-0 cursor-pointer"
+                        id="inline-export-end-date"
+                      />
+                    </div>
+                  )}
+
+                  {/* Filename Input */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Filename (optional)"
+                      value={customFilename}
+                      onChange={(e) => setCustomFilename(e.target.value)}
+                      className="px-3 py-1.5 bg-white border border-slate-205 rounded-lg text-xs font-medium text-slate-700 placeholder:text-slate-400 focus:outline-hidden focus:border-slate-400 w-36"
+                      id="inline-export-filename"
+                    />
+                  </div>
+
+                  {/* Export Button */}
+                  <button
+                    type="button"
+                    onClick={handleExecuteExport}
+                    className="py-1.5 px-3.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                    id="btn-inline-export-execute"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Export CSV</span>
+                  </button>
+                </div>
+              </div>
+              
+              {/* Inline export error banner if any */}
+              {exportError && (
+                <div className="bg-red-50 border-b border-red-150 text-red-900 px-5 py-2.5 text-xs flex items-center gap-2" id="inline-export-error-banner">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>{exportError}</span>
+                </div>
+              )}
 
               {/* Call Database Table */}
               <div className="overflow-x-auto" id="calls-scroll-area">
@@ -1556,94 +1635,6 @@ export default function CallManagement({
                 </div>
               </div>
 
-              {/* Sort features next to each other */}
-              <div className="pt-3.5 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3" id="positive-sort-bench">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-widest mr-1">
-                    <ArrowUpDown className="w-3.5 h-3.5 text-slate-450" />
-                    <span>Sort By:</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPositiveSortField('created');
-                      setPositivePage(1);
-                    }}
-                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      positiveSortField === 'created'
-                        ? 'bg-slate-900 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                    id="btn-sort-positive-created"
-                  >
-                    Created Date
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPositiveSortField('followup');
-                      setPositivePage(1);
-                    }}
-                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      positiveSortField === 'followup'
-                        ? 'bg-slate-900 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                    id="btn-sort-positive-followup"
-                  >
-                    Follow-up Date
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPositiveSortField('name');
-                      setPositivePage(1);
-                    }}
-                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      positiveSortField === 'name'
-                        ? 'bg-slate-900 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                    id="btn-sort-positive-name"
-                  >
-                    Client Name
-                  </button>
-                </div>
-
-                {/* Sort Order buttons side-by-side */}
-                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl shrink-0" id="positive-sort-order-toggle">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPositiveSortOrder('asc');
-                      setPositivePage(1);
-                    }}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      positiveSortOrder === 'asc'
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                    id="btn-sort-order-asc"
-                  >
-                    Ascending
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPositiveSortOrder('desc');
-                      setPositivePage(1);
-                    }}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      positiveSortOrder === 'desc'
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                    id="btn-sort-order-desc"
-                  >
-                    Descending
-                  </button>
-                </div>
-              </div>
             </div>
 
                         {/* Positive Clients Grid / Card View Container */}
@@ -2008,162 +1999,7 @@ export default function CallManagement({
         )}
       </AnimatePresence>
 
-      {/* Export Modal Overlays */}
-      <AnimatePresence>
-        {isExportModalOpen && (
-          <>
-            {/* Backdrop */}
-            <div
-              className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 transition-opacity"
-              onClick={() => setIsExportModalOpen(false)}
-              id="export-modal-backdrop"
-            />
 
-            {/* Modal Body Centered */}
-            <div className="fixed inset-0 flex items-center justify-center p-4 z-50" id="export-modal-outer">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 15 }}
-                transition={{ type: 'spring', duration: 0.4 }}
-                className="bg-white rounded-2xl border border-slate-200/80 shadow-2xl max-w-md w-full overflow-hidden flex flex-col"
-                id="export-modal-card"
-              >
-                {/* Header */}
-                <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50" id="export-header">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center">
-                      <FileSpreadsheet className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-900 leading-none">Export Call Records</h3>
-                      <span className="text-[11px] text-slate-450 block mt-1">Export filtered call records as spreadsheet CSV</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setIsExportModalOpen(false)}
-                    className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center transition-all cursor-pointer"
-                    id="btn-close-export"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* Form fields */}
-                <div className="p-6 space-y-5" id="export-modal-content">
-                  {exportError && (
-                    <div className="bg-red-50 border border-red-100 text-red-950 p-3.5 rounded-xl text-xs flex gap-2 leading-relaxed" id="export-error-banner">
-                      <AlertCircle className="w-4.5 h-4.5 text-red-600 shrink-0" />
-                      <span>{exportError}</span>
-                    </div>
-                  )}
-
-                  {/* Predefined Range Options */}
-                  <div className="space-y-2">
-                    <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date bounds scope</span>
-                    <div className="grid grid-cols-4 gap-2" id="export-ranges-box">
-                      {(['Today', 'Week', 'Month', 'Custom'] as const).map((range) => (
-                        <button
-                          key={range}
-                          onClick={() => {
-                            setExportRange(range);
-                            setExportError('');
-                          }}
-                          className={`py-2 px-1 rounded-xl border text-center text-xs font-semibold transition-all cursor-pointer ${
-                            exportRange === range
-                              ? 'bg-slate-900 text-white border-slate-950 shadow-2xs'
-                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                          }`}
-                        >
-                          {range}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Conditional Custom Dates inputs */}
-                  {exportRange === 'Custom' && (
-                    <div className="grid grid-cols-2 gap-3 pt-1 animate-fade-in" id="export-custom-dates-row">
-                      <div className="space-y-1.5">
-                        <label className="block text-xs font-bold text-slate-600" htmlFor="export-start-date">
-                          Start Date
-                        </label>
-                        <input
-                          type="date"
-                          id="export-start-date"
-                          value={exportStartDate}
-                          onChange={(e) => {
-                            setExportStartDate(e.target.value);
-                            setExportError('');
-                          }}
-                          className="block w-full p-2 border border-slate-205 rounded-xl text-xs font-medium text-slate-900 bg-white"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="block text-xs font-bold text-slate-600" htmlFor="export-end-date">
-                          End Date
-                        </label>
-                        <input
-                          type="date"
-                          id="export-end-date"
-                          value={exportEndDate}
-                          onChange={(e) => {
-                            setExportEndDate(e.target.value);
-                            setExportError('');
-                          }}
-                          className="block w-full p-2 border border-slate-205 rounded-xl text-xs font-medium text-slate-900 bg-white"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Active scope description status */}
-                  <div className="bg-slate-50 border border-slate-150 p-3 rounded-xl flex items-center justify-between text-xs" id="export-scope-desc">
-                    <span className="text-slate-550 font-medium">Included records:</span>
-                    <span className="font-mono text-slate-850 font-bold max-w-[210px] truncate" title={getRangeDescription()}>
-                      {getRangeDescription()}
-                    </span>
-                  </div>
-
-                  {/* Filename modifier */}
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-750 uppercase tracking-wider" htmlFor="export-filename">
-                      Custom Filename <span className="text-slate-400 font-normal">(Optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      id="export-filename"
-                      value={customFilename}
-                      onChange={(e) => setCustomFilename(e.target.value)}
-                      placeholder="E.g., call_logs_q2_report"
-                      className="block w-full p-2.5 bg-white border border-slate-205 text-slate-900 placeholder:text-slate-400 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 text-sm"
-                    />
-                  </div>
-                </div>
-
-                {/* Footer controls */}
-                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5" id="export-footer">
-                  <button
-                    onClick={() => setIsExportModalOpen(false)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 transition-colors cursor-pointer"
-                    id="btn-cancel-export"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleExecuteExport}
-                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-md shadow-slate-900/10 flex items-center gap-1.5 cursor-pointer transition-colors"
-                    id="btn-trigger-download"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download Report</span>
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-          </>
-        )}
-      </AnimatePresence>
 
       {/* Close Lead Dialog Overlay */}
       <AnimatePresence>
