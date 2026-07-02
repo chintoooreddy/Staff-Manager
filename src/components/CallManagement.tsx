@@ -566,7 +566,7 @@ export default function CallManagement({
       callStatus: updateStatus,
       followupDate: needsDate ? updateFollowupDate : undefined,
       interestedService: needsService ? updateService : undefined,
-      loggedBy: updatingFollowupRecord.loggedBy,
+      loggedBy: currentUserFullName || updatingFollowupRecord.loggedBy,
       notes: updateNotes.trim() || undefined,
       isFollowupUpdate: true,
     });
