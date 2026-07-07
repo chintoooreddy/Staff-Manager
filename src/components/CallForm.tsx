@@ -10,7 +10,7 @@ import { CallRecord, CallStatus, StaffMember, ServiceItem } from '../types';
 
 interface CallFormProps {
   onClose: () => void;
-  onSave: (callData: Omit<CallRecord, 'id' | 'createdDate'> & { id?: string }) => void;
+  onSave: (callData: Omit<CallRecord, 'id' | 'createdDate'> & { id?: string; customCreatedDate?: string }) => void;
   editingCall?: CallRecord | null;
   staffList: StaffMember[];
   currentAdminEmail: string;
@@ -29,6 +29,46 @@ export default function CallForm({ onClose, onSave, editingCall, staffList, curr
   const [loggedBy, setLoggedBy] = useState('Administrator');
   const [notes, setNotes] = useState('');
   const [errorCode, setErrorCode] = useState('');
+  const [customCreatedDate, setCustomCreatedDate] = useState('');
+
+  const getISODateFromRecordDate = (dateStr: string): string => {
+    if (!dateStr) return new Date().toISOString().split('T')[0];
+    const parsed = Date.parse(dateStr);
+    if (!isNaN(parsed)) {
+      return new Date(parsed).toISOString().split('T')[0];
+    }
+    try {
+      const cleaned = dateStr.replace(/,/g, '').trim();
+      const parts = cleaned.split(/\s+/);
+      if (parts.length >= 3) {
+        const monthMap: { [key: string]: number } = {
+          'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+          'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11,
+          'January': 0, 'February': 1, 'March': 2, 'April': 3, 'June': 5,
+          'July': 6, 'August': 7, 'September': 8, 'October': 9, 'November': 10, 'December': 11
+        };
+        const month = monthMap[parts[0]] !== undefined ? monthMap[parts[0]] : 0;
+        const day = parseInt(parts[1], 10) || 1;
+        const year = parseInt(parts[2], 10) || new Date().getFullYear();
+        const d = new Date(year, month, day);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const rDay = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${rDay}`;
+      }
+    } catch (e) {
+      // fallback
+    }
+    return new Date().toISOString().split('T')[0];
+  };
+
+  const getLocalTodayDateString = (): string => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const rDay = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${rDay}`;
+  };
 
   // Populate data when editing is triggered
   useEffect(() => {
@@ -41,6 +81,7 @@ export default function CallForm({ onClose, onSave, editingCall, staffList, curr
       setInterestedService(editingCall.interestedService || firstActiveServiceName);
       setLoggedBy(editingCall.loggedBy);
       setNotes(editingCall.notes || '');
+      setCustomCreatedDate(getISODateFromRecordDate(editingCall.createdDate));
     } else {
       setClientName('');
       setClientNumber('');
@@ -49,6 +90,7 @@ export default function CallForm({ onClose, onSave, editingCall, staffList, curr
       setInterestedService(firstActiveServiceName);
       setLoggedBy(currentUserRole === 'User' ? (currentUserFullName || 'User') : 'Administrator');
       setNotes('');
+      setCustomCreatedDate(getLocalTodayDateString());
     }
     setErrorCode('');
   }, [editingCall, activeServices, currentUserRole, currentUserFullName]);
@@ -110,6 +152,7 @@ export default function CallForm({ onClose, onSave, editingCall, staffList, curr
       interestedService: needsService ? interestedService : undefined,
       loggedBy,
       notes: notes.trim() || undefined,
+      customCreatedDate,
     });
   };
 
@@ -206,6 +249,30 @@ export default function CallForm({ onClose, onSave, editingCall, staffList, curr
                     placeholder="E.g., +1 (555) 019-2834"
                   />
                 </div>
+              </div>
+
+              {/* Call Date Input (Created Date) */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1.5" htmlFor="call-created-date">
+                  Call Date <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Calendar className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="date"
+                    id="call-created-date"
+                    required
+                    value={customCreatedDate}
+                    onChange={(e) => setCustomCreatedDate(e.target.value)}
+                    max={getLocalTodayDateString()}
+                    className="block w-full pl-9 pr-3.5 py-2.5 bg-white border border-slate-205 text-slate-900 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all text-sm cursor-pointer"
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400 block mt-1">
+                  Select a previous date if logging a missed call from an earlier day.
+                </span>
               </div>
 
               {/* Status Radio Buttons */}

@@ -394,7 +394,7 @@ export default function App() {
       .catch((err) => handleFirestoreError(err, OperationType.DELETE, `call_records/${id}`));
   };
 
-  const handleSaveCall = (callData: Omit<CallRecord, 'id' | 'createdDate'> & { id?: string; isFollowupUpdate?: boolean; followupCompletedDate?: string }) => {
+  const handleSaveCall = (callData: Omit<CallRecord, 'id' | 'createdDate'> & { id?: string; isFollowupUpdate?: boolean; followupCompletedDate?: string; customCreatedDate?: string }) => {
     const id = callData.id || `call-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
     let createdDate = '';
     let isFollowupUpdate = callData.isFollowupUpdate;
@@ -404,24 +404,31 @@ export default function App() {
       0: 'Jan', 1: 'Feb', 2: 'Mar', 3: 'Apr', 4: 'May', 5: 'Jun',
       6: 'Jul', 7: 'Aug', 8: 'Sep', 9: 'Oct', 10: 'Nov', 11: 'Dec'
     };
-    const now = new Date();
-    const monthStr = formatMonthMap[now.getMonth()];
-    const dayStr = String(now.getDate()).padStart(2, '0');
-    const yearStr = now.getFullYear();
-    const todayStr = `${monthStr} ${dayStr}, ${yearStr}`;
 
-    let hours = now.getHours();
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12;
-    const hoursStr = String(hours).padStart(2, '0');
-    const minutesStr = String(now.getMinutes()).padStart(2, '0');
-    const secondsStr = String(now.getSeconds()).padStart(2, '0');
-    const todayStrWithTime = `${monthStr} ${dayStr}, ${yearStr} ${hoursStr}:${minutesStr}:${secondsStr} ${ampm}`;
+    const getFormattedDateString = (dateObj: Date): string => {
+      const monthStr = formatMonthMap[dateObj.getMonth()];
+      const dayStr = String(dateObj.getDate()).padStart(2, '0');
+      const yearStr = dateObj.getFullYear();
+      let hours = dateObj.getHours();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      const hoursStr = String(hours).padStart(2, '0');
+      const minutesStr = String(dateObj.getMinutes()).padStart(2, '0');
+      const secondsStr = String(dateObj.getSeconds()).padStart(2, '0');
+      return `${monthStr} ${dayStr}, ${yearStr} ${hoursStr}:${minutesStr}:${secondsStr} ${ampm}`;
+    };
 
     if (callData.id) {
       const existingCall = callList.find((c) => c.id === callData.id);
-      createdDate = existingCall ? existingCall.createdDate : '';
+      if (callData.customCreatedDate) {
+        const [year, month, day] = callData.customCreatedDate.split('-').map(Number);
+        const tempNow = new Date();
+        const customNow = new Date(year, month - 1, day, tempNow.getHours(), tempNow.getMinutes(), tempNow.getSeconds());
+        createdDate = getFormattedDateString(customNow);
+      } else {
+        createdDate = existingCall ? existingCall.createdDate : '';
+      }
       if (isFollowupUpdate === undefined && existingCall) {
         isFollowupUpdate = existingCall.isFollowupUpdate;
       }
@@ -429,8 +436,21 @@ export default function App() {
         followupCompletedDate = existingCall.followupCompletedDate;
       }
     } else {
-      createdDate = todayStrWithTime;
+      if (callData.customCreatedDate) {
+        const [year, month, day] = callData.customCreatedDate.split('-').map(Number);
+        const tempNow = new Date();
+        const customNow = new Date(year, month - 1, day, tempNow.getHours(), tempNow.getMinutes(), tempNow.getSeconds());
+        createdDate = getFormattedDateString(customNow);
+      } else {
+        createdDate = getFormattedDateString(new Date());
+      }
     }
+
+    const now = new Date();
+    const monthStr = formatMonthMap[now.getMonth()];
+    const dayStr = String(now.getDate()).padStart(2, '0');
+    const yearStr = now.getFullYear();
+    const todayStr = `${monthStr} ${dayStr}, ${yearStr}`;
 
     if (isFollowupUpdate) {
       followupCompletedDate = todayStr;
