@@ -100,11 +100,25 @@ export default function ClosedLeads({
   const [editError, setEditError] = useState('');
 
   const getISODateFromRecordDate = (dateStr: string): string => {
-    if (!dateStr) return new Date().toISOString().split('T')[0];
-    const parsed = Date.parse(dateStr);
-    if (!isNaN(parsed)) {
-      return new Date(parsed).toISOString().split('T')[0];
+    if (!dateStr) return getLocalTodayDateString();
+    
+    // If it's already in YYYY-MM-DD format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return dateStr;
     }
+
+    try {
+      const parsed = new Date(dateStr);
+      if (!isNaN(parsed.getTime())) {
+        const y = parsed.getFullYear();
+        const m = String(parsed.getMonth() + 1).padStart(2, '0');
+        const rDay = String(parsed.getDate()).padStart(2, '0');
+        return `${y}-${m}-${rDay}`;
+      }
+    } catch (e) {
+      // fallback
+    }
+
     try {
       const cleaned = dateStr.replace(/,/g, '').trim();
       const parts = cleaned.split(/\s+/);
@@ -127,7 +141,7 @@ export default function ClosedLeads({
     } catch (e) {
       // fallback
     }
-    return new Date().toISOString().split('T')[0];
+    return getLocalTodayDateString();
   };
 
   const getLocalTodayDateString = (): string => {
