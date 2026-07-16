@@ -15,7 +15,7 @@ import Pagination from './Pagination';
 interface ClosedLeadsProps {
   closedLeads: ClosedLead[];
   services: ServiceItem[];
-  onSaveClosedLead: (leadData: Omit<ClosedLead, 'closedDate'> & { id?: string }) => void;
+  onSaveClosedLead: (leadData: Omit<ClosedLead, 'closedDate'> & { id?: string; closedDate?: string }) => void;
   onDeleteClosedLead?: (id: string) => void;
   currentUserRole?: string;
   currentUserFullName?: string;
@@ -96,7 +96,47 @@ export default function ClosedLeads({
   const [editPaidBy, setEditPaidBy] = useState('');
   const [editCustomPaidBy, setEditCustomPaidBy] = useState('');
   const [editClosedBy, setEditClosedBy] = useState('');
+  const [editClosedDate, setEditClosedDate] = useState('');
   const [editError, setEditError] = useState('');
+
+  const getISODateFromRecordDate = (dateStr: string): string => {
+    if (!dateStr) return new Date().toISOString().split('T')[0];
+    const parsed = Date.parse(dateStr);
+    if (!isNaN(parsed)) {
+      return new Date(parsed).toISOString().split('T')[0];
+    }
+    try {
+      const cleaned = dateStr.replace(/,/g, '').trim();
+      const parts = cleaned.split(/\s+/);
+      if (parts.length >= 3) {
+        const monthMap: { [key: string]: number } = {
+          'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+          'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11,
+          'January': 0, 'February': 1, 'March': 2, 'April': 3, 'June': 5,
+          'July': 6, 'August': 7, 'September': 8, 'October': 9, 'November': 10, 'December': 11
+        };
+        const month = monthMap[parts[0]] !== undefined ? monthMap[parts[0]] : 0;
+        const day = parseInt(parts[1], 10) || 1;
+        const year = parseInt(parts[2], 10) || new Date().getFullYear();
+        const d = new Date(year, month, day);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const rDay = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${rDay}`;
+      }
+    } catch (e) {
+      // fallback
+    }
+    return new Date().toISOString().split('T')[0];
+  };
+
+  const getLocalTodayDateString = (): string => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const rDay = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${rDay}`;
+  };
 
   // Delete lead state
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -247,6 +287,7 @@ export default function ClosedLeads({
     setEditTakenService(lead.takenService);
     setEditAmountPaid(lead.amountPaid);
     setEditClosedBy(lead.closedBy || 'Administrator');
+    setEditClosedDate(getISODateFromRecordDate(lead.closedDate));
     
     const standardMethods = ['Cash', 'UPI', 'Card', 'Bank Transfer'];
     if (standardMethods.includes(lead.paidBy)) {
@@ -281,6 +322,16 @@ export default function ClosedLeads({
       setEditError('Closed By employee is required.');
       return;
     }
+    if (currentUserRole === 'Admin') {
+      if (!editClosedDate) {
+        setEditError('Closed Lead Date is required.');
+        return;
+      }
+      if (editClosedDate > getLocalTodayDateString()) {
+        setEditError('Closed Lead Date cannot be in the future.');
+        return;
+      }
+    }
 
     const finalPaidBy = editPaidBy === 'Other' ? editCustomPaidBy.trim() : editPaidBy;
     if (!finalPaidBy) {
@@ -297,6 +348,7 @@ export default function ClosedLeads({
       amountPaid: Number(editAmountPaid),
       paidBy: finalPaidBy,
       closedBy: editClosedBy.trim(),
+      closedDate: currentUserRole === 'Admin' ? editClosedDate : undefined,
     });
 
     setEditingLead(null);
@@ -883,6 +935,31 @@ export default function ClosedLeads({
                       />
                     </div>
                   </div>
+
+                  {/* Closed Lead Date (Only for Admin Role) */}
+                  {currentUserRole === 'Admin' && (
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide" htmlFor="edit-closed-date">
+                        Closed Lead Date <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                          <Calendar className="w-4 h-4" />
+                        </div>
+                        <input
+                          type="date"
+                          id="edit-closed-date"
+                          value={editClosedDate}
+                          onChange={(e) => setEditClosedDate(e.target.value)}
+                          max={getLocalTodayDateString()}
+                          className="block w-full pl-10 pr-3.5 py-2.5 bg-white border border-slate-205 text-slate-900 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 text-sm cursor-pointer"
+                        />
+                      </div>
+                      <span className="text-[10px] text-slate-400 block mt-1">
+                        Select previous date of closing (future dates are not allowed).
+                      </span>
+                    </div>
+                  )}
 
                   {/* 3. Taken Service */}
                   <div className="space-y-1.5">

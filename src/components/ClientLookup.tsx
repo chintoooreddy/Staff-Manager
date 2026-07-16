@@ -41,6 +41,7 @@ interface ClientLookupProps {
     panelNameUrl?: string;
     panelUsername?: string;
     panelPassword?: string;
+    closedDate?: string;
   }) => void;
   onSaveCall?: (callData: Omit<CallRecord, 'id' | 'createdDate'> & { id?: string }) => void;
   currentUserRole: string;
@@ -71,6 +72,7 @@ export default function ClientLookup({
   const [panelNameUrl, setPanelNameUrl] = useState<string>('');
   const [panelUsername, setPanelUsername] = useState<string>('');
   const [panelPassword, setPanelPassword] = useState<string>('');
+  const [closeLeadDate, setCloseLeadDate] = useState<string>('');
   const [modalError, setModalError] = useState<string>('');
 
   // Credentials viewing popup state
@@ -137,6 +139,14 @@ export default function ClientLookup({
 
   const totalRevenue = sortedOrders.reduce((sum, order) => sum + (Number(order.amountPaid) || 0), 0);
 
+  const getLocalTodayDateString = (): string => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const rDay = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${rDay}`;
+  };
+
   // Open Purchase Modal
   const handleOpenPurchaseModal = () => {
     setModalTab('business');
@@ -148,6 +158,7 @@ export default function ClientLookup({
     setPanelNameUrl('');
     setPanelUsername('');
     setPanelPassword('');
+    setCloseLeadDate(getLocalTodayDateString());
     setModalError('');
     setIsPurchaseModalOpen(true);
   };
@@ -167,6 +178,14 @@ export default function ClientLookup({
       setModalError('Please specify the custom payment mode.');
       return;
     }
+    if (!closeLeadDate) {
+      setModalError('Please select a Close Lead Date.');
+      return;
+    }
+    if (closeLeadDate > getLocalTodayDateString()) {
+      setModalError('Close Lead Date cannot be in the future.');
+      return;
+    }
 
     // Call onCloseLead which creates a separate transaction document in Firestore
     onCloseLead({
@@ -179,6 +198,7 @@ export default function ClientLookup({
       panelNameUrl: panelNameUrl.trim(),
       panelUsername: panelUsername.trim(),
       panelPassword: panelPassword,
+      closedDate: closeLeadDate,
     });
 
     setIsPurchaseModalOpen(false);
@@ -812,6 +832,33 @@ export default function ClientLookup({
                             className="block w-full pl-8 pr-3.5 py-2.5 bg-white border border-slate-205 text-slate-900 placeholder:text-slate-400 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 text-sm no-stepper [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                         </div>
+                      </div>
+
+                      {/* Close Lead Date Selector */}
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide" htmlFor="lookup-close-lead-date">
+                          Close Lead Date <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                            <Calendar className="w-4 h-4" />
+                          </div>
+                          <input
+                            type="date"
+                            id="lookup-close-lead-date"
+                            required
+                            value={closeLeadDate}
+                            onChange={(e) => {
+                              setCloseLeadDate(e.target.value);
+                              setModalError('');
+                            }}
+                            max={getLocalTodayDateString()}
+                            className="block w-full pl-9 pr-3.5 py-2.5 bg-white border border-slate-205 text-slate-900 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all text-sm cursor-pointer"
+                          />
+                        </div>
+                        <span className="text-[10px] text-slate-400 block mt-1">
+                          Select the actual lead closure date (previous dates allowed, future dates forbidden).
+                        </span>
                       </div>
 
                       {/* 3. Paid By Selection */}

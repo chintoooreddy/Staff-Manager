@@ -25,7 +25,7 @@ interface CallManagementProps {
   onEditCall: (record: CallRecord) => void;
   onDeleteCall: (id: string) => void;
   onSaveCall: (callData: Omit<CallRecord, 'id' | 'createdDate'> & { id?: string; isFollowupUpdate?: boolean; followupCompletedDate?: string }) => void;
-  onCloseLead: (leadData: { callRecordId: string; clientName: string; clientNumber: string; takenService: string; amountPaid: number; paidBy: string; panelNameUrl?: string; panelUsername?: string; panelPassword?: string }) => void;
+  onCloseLead: (leadData: { callRecordId: string; clientName: string; clientNumber: string; takenService: string; amountPaid: number; paidBy: string; panelNameUrl?: string; panelUsername?: string; panelPassword?: string; closedDate?: string }) => void;
   activeSubTab?: 'daily' | 'followup' | 'positive';
   onActiveSubTabChange?: (subTab: 'daily' | 'followup' | 'positive') => void;
 }
@@ -159,6 +159,7 @@ export default function CallManagement({
   const [panelNameUrl, setPanelNameUrl] = useState<string>('');
   const [panelUsername, setPanelUsername] = useState<string>('');
   const [panelPassword, setPanelPassword] = useState<string>('');
+  const [closeLeadDate, setCloseLeadDate] = useState<string>('');
   const [closeLeadError, setCloseLeadError] = useState<string>('');
 
   // Helper to parse date string like "Jun 23, 2026 10:20:30 AM" or "Jun 23, 2026" to local Date object
@@ -590,6 +591,7 @@ export default function CallManagement({
     setPanelNameUrl('');
     setPanelUsername('');
     setPanelPassword('');
+    setCloseLeadDate(getLocalTodayDateString());
     setCloseLeadError('');
   };
 
@@ -608,6 +610,14 @@ export default function CallManagement({
       setCloseLeadError('Please specify how the payment was made (Paid By).');
       return;
     }
+    if (!closeLeadDate) {
+      setCloseLeadError('Please select a Close Lead Date.');
+      return;
+    }
+    if (closeLeadDate > getLocalTodayDateString()) {
+      setCloseLeadError('Close Lead Date cannot be in the future.');
+      return;
+    }
 
     onCloseLead({
       callRecordId: closingLeadRecord.id,
@@ -619,6 +629,7 @@ export default function CallManagement({
       panelNameUrl: panelNameUrl.trim(),
       panelUsername: panelUsername.trim(),
       panelPassword: panelPassword,
+      closedDate: closeLeadDate,
     });
 
     setClosingLeadRecord(null);
@@ -2139,6 +2150,33 @@ export default function CallManagement({
                         className="block w-full pl-8 pr-3.5 py-2.5 bg-white border border-slate-205 text-slate-900 placeholder:text-slate-400 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 text-sm no-stepper [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </div>
+                  </div>
+
+                  {/* Close Lead Date Selector */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide" htmlFor="close-lead-date-input">
+                      Close Lead Date <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                        <Calendar className="w-4 h-4" />
+                      </div>
+                      <input
+                        type="date"
+                        id="close-lead-date-input"
+                        required
+                        value={closeLeadDate}
+                        onChange={(e) => {
+                          setCloseLeadDate(e.target.value);
+                          setCloseLeadError('');
+                        }}
+                        max={getLocalTodayDateString()}
+                        className="block w-full pl-9 pr-3.5 py-2.5 bg-white border border-slate-205 text-slate-900 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all text-sm cursor-pointer"
+                      />
+                    </div>
+                    <span className="text-[10px] text-slate-400 block mt-1">
+                      Select the actual lead closure date (previous dates allowed, future dates forbidden).
+                    </span>
                   </div>
 
                   {/* 3. Paid By Selection */}

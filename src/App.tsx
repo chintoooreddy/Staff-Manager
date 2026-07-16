@@ -507,17 +507,29 @@ export default function App() {
     panelNameUrl?: string;
     panelUsername?: string;
     panelPassword?: string;
+    closedDate?: string;
   }) => {
     // 1. Create a ClosedLead record
     const formatMonthMap: { [key: number]: string } = {
       0: 'Jan', 1: 'Feb', 2: 'Mar', 3: 'Apr', 4: 'May', 5: 'Jun',
       6: 'Jul', 7: 'Aug', 8: 'Sep', 9: 'Oct', 10: 'Nov', 11: 'Dec'
     };
-    const now = new Date();
-    const monthStr = formatMonthMap[now.getMonth()];
-    const dayStr = String(now.getDate()).padStart(2, '0');
-    const yearStr = now.getFullYear();
-    const formattedDate = `${monthStr} ${dayStr}, ${yearStr}`;
+    
+    let formattedDate = '';
+    if (leadData.closedDate) {
+      const [year, month, day] = leadData.closedDate.split('-').map(Number);
+      const customDate = new Date(year, month - 1, day);
+      const monthStr = formatMonthMap[customDate.getMonth()];
+      const dayStr = String(customDate.getDate()).padStart(2, '0');
+      const yearStr = customDate.getFullYear();
+      formattedDate = `${monthStr} ${dayStr}, ${yearStr}`;
+    } else {
+      const now = new Date();
+      const monthStr = formatMonthMap[now.getMonth()];
+      const dayStr = String(now.getDate()).padStart(2, '0');
+      const yearStr = now.getFullYear();
+      formattedDate = `${monthStr} ${dayStr}, ${yearStr}`;
+    }
 
     const matchingCall = callList.find((c) => c.id === leadData.callRecordId);
     const originalLogger = matchingCall ? matchingCall.loggedBy : currentUserFullName;
@@ -552,18 +564,26 @@ export default function App() {
       .catch((err) => handleFirestoreError(err, OperationType.WRITE, 'closed_leads/call_records_batch'));
   };
 
-  const handleSaveClosedLead = (leadData: Omit<ClosedLead, 'closedDate'> & { id?: string }) => {
+  const handleSaveClosedLead = (leadData: Omit<ClosedLead, 'closedDate'> & { id?: string; closedDate?: string }) => {
     const id = leadData.id || `closed-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
     let closedDate = '';
 
-    if (leadData.id) {
+    const formatMonthMap: { [key: number]: string } = {
+      0: 'Jan', 1: 'Feb', 2: 'Mar', 3: 'Apr', 4: 'May', 5: 'Jun',
+      6: 'Jul', 7: 'Aug', 8: 'Sep', 9: 'Oct', 10: 'Nov', 11: 'Dec'
+    };
+
+    if (leadData.closedDate) {
+      const [year, month, day] = leadData.closedDate.split('-').map(Number);
+      const customDate = new Date(year, month - 1, day);
+      const monthStr = formatMonthMap[customDate.getMonth()];
+      const dayStr = String(customDate.getDate()).padStart(2, '0');
+      const yearStr = customDate.getFullYear();
+      closedDate = `${monthStr} ${dayStr}, ${yearStr}`;
+    } else if (leadData.id) {
       const existingLead = closedLeads.find((c) => c.id === leadData.id);
       closedDate = existingLead ? existingLead.closedDate : '';
     } else {
-      const formatMonthMap: { [key: number]: string } = {
-        0: 'Jan', 1: 'Feb', 2: 'Mar', 3: 'Apr', 4: 'May', 5: 'Jun',
-        6: 'Jul', 7: 'Aug', 8: 'Sep', 9: 'Oct', 10: 'Nov', 11: 'Dec'
-      };
       const now = new Date();
       const monthStr = formatMonthMap[now.getMonth()];
       const dayStr = String(now.getDate()).padStart(2, '0');
