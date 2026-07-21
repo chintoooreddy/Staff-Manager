@@ -244,12 +244,22 @@ export default function ClosedLeads({
     return matchesSearch && matchesService && matchesPayment && matchesDateRange;
   });
 
+  // Sort leads so that recent ones display first and older ones display last
+  const sortedFilteredLeads = [...filteredLeads].sort((a, b) => {
+    const dateA = parseRecordDate(a.closedDate).getTime();
+    const dateB = parseRecordDate(b.closedDate).getTime();
+    if (dateA !== dateB) {
+      return dateB - dateA; // descending order (recent first)
+    }
+    return b.id.localeCompare(a.id);
+  });
+
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(25);
-  const totalItems = filteredLeads.length;
+  const totalItems = sortedFilteredLeads.length;
   const totalPages = Math.ceil(totalItems / pageSize) || 1;
   const safePage = Math.min(page, totalPages);
-  const paginatedLeads = filteredLeads.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const paginatedLeads = sortedFilteredLeads.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const escapeCSVCell = (val: string): string => {
     if (val === null || val === undefined) return '';
@@ -260,7 +270,7 @@ export default function ClosedLeads({
   };
 
   const handleExportLeads = () => {
-    if (filteredLeads.length === 0) {
+    if (sortedFilteredLeads.length === 0) {
       alert('No closed leads records found to export.');
       return;
     }
@@ -268,7 +278,7 @@ export default function ClosedLeads({
     let filename = `closed-leads-export-${new Date().toISOString().split('T')[0]}.csv`;
 
     const headers = ['Client Name', 'Number', 'Taken Service', 'Amount Paid (INR)', 'Payment Mode', 'Closed Date', 'Closed By'];
-    const rows = filteredLeads.map(r => [
+    const rows = sortedFilteredLeads.map(r => [
       escapeCSVCell(r.clientName),
       escapeCSVCell(r.clientNumber),
       escapeCSVCell(r.takenService),
