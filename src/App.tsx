@@ -182,42 +182,32 @@ export default function App() {
         items.push(doc.data() as StaffMember);
       });
 
-      if (items.length === 0) {
-        // Preseed staff members if empty
-        const batch = writeBatch(db);
-        DEFAULT_PRESEED_STAFF.forEach((staff) => {
-          const docRef = doc(db, 'staff_members', staff.id);
-          batch.set(docRef, cleanObjectForFirestore(staff));
-        });
-        batch.commit().catch((err) => handleFirestoreError(err, OperationType.WRITE, 'staff_members'));
-      } else {
-        // Clean up legacy Master Admin records from DB
-        const legacyEmails = ['admin@company.com', 'admin@campany.com', 'adleaddigitalmedia@gmail.com'];
-        items.forEach((item) => {
-          const lower = item.email?.trim().toLowerCase();
-          if (item.id !== 'master-admin' && legacyEmails.includes(lower)) {
-            deleteDoc(doc(db, 'staff_members', item.id)).catch(() => {});
-          }
-        });
-
-        // Automatically sync Master Admin record to Firestore so it appears in the Directory and can be managed
-        const masterDoc = items.find((s) => s.id === 'master-admin' || s.email?.trim().toLowerCase().startsWith('whitelineborder@gmail'));
-        if (!masterDoc || !masterDoc.email?.toLowerCase().startsWith('whitelineborder@gmail') || masterDoc.password !== 'Sindhu@0201') {
-          const masterRecord: StaffMember = {
-            id: 'master-admin',
-            fullName: 'Master Admin',
-            email: 'whitelineborder@gmail.com',
-            role: 'Admin',
-            status: 'Active',
-            joinedDate: 'Jan 01, 2025',
-            password: 'Sindhu@0201',
-          };
-          setDoc(doc(db, 'staff_members', 'master-admin'), cleanObjectForFirestore(masterRecord)).catch(() => {});
+      // Clean up legacy Master Admin records from DB
+      const legacyEmails = ['admin@company.com', 'admin@campany.com', 'adleaddigitalmedia@gmail.com'];
+      items.forEach((item) => {
+        const lower = item.email?.trim().toLowerCase();
+        if (item.id !== 'master-admin' && legacyEmails.includes(lower)) {
+          deleteDoc(doc(db, 'staff_members', item.id)).catch(() => {});
         }
+      });
 
-        const filteredItems = items.filter((item) => !legacyEmails.includes(item.email?.trim().toLowerCase()));
-        setStaffList(filteredItems);
+      // Automatically sync Master Admin record to Firestore so it appears in the Directory and can be managed
+      const masterDoc = items.find((s) => s.id === 'master-admin' || s.email?.trim().toLowerCase().startsWith('whitelineborder@gmail'));
+      if (!masterDoc || !masterDoc.email?.toLowerCase().startsWith('whitelineborder@gmail') || masterDoc.password !== 'Sindhu@0201') {
+        const masterRecord: StaffMember = {
+          id: 'master-admin',
+          fullName: 'Master Admin',
+          email: 'whitelineborder@gmail.com',
+          role: 'Admin',
+          status: 'Active',
+          joinedDate: 'Jan 01, 2025',
+          password: 'Sindhu@0201',
+        };
+        setDoc(doc(db, 'staff_members', 'master-admin'), cleanObjectForFirestore(masterRecord)).catch(() => {});
       }
+
+      const filteredItems = items.filter((item) => !legacyEmails.includes(item.email?.trim().toLowerCase()));
+      setStaffList(filteredItems);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'staff_members');
     });
@@ -228,18 +218,7 @@ export default function App() {
       snapshot.forEach((doc) => {
         items.push(doc.data() as CallRecord);
       });
-
-      if (items.length === 0) {
-        // Preseed call records if empty
-        const batch = writeBatch(db);
-        DEFAULT_PRESEED_CALLS.forEach((call) => {
-          const docRef = doc(db, 'call_records', call.id);
-          batch.set(docRef, cleanObjectForFirestore(call));
-        });
-        batch.commit().catch((err) => handleFirestoreError(err, OperationType.WRITE, 'call_records'));
-      } else {
-        setCallList(items);
-      }
+      setCallList(items);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'call_records');
     });
@@ -250,18 +229,7 @@ export default function App() {
       snapshot.forEach((doc) => {
         items.push(doc.data() as ServiceItem);
       });
-
-      if (items.length === 0) {
-        // Preseed picklist services if empty
-        const batch = writeBatch(db);
-        DEFAULT_PRESEED_SERVICES.forEach((srv) => {
-          const docRef = doc(db, 'picklist_services', srv.id);
-          batch.set(docRef, cleanObjectForFirestore(srv));
-        });
-        batch.commit().catch((err) => handleFirestoreError(err, OperationType.WRITE, 'picklist_services'));
-      } else {
-        setServices(items);
-      }
+      setServices(items);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'picklist_services');
     });
@@ -339,6 +307,12 @@ export default function App() {
       setDoc(doc(db, 'staff_members', id), cleanObjectForFirestore(updatedStaff))
         .catch((err) => handleFirestoreError(err, OperationType.WRITE, `staff_members/${id}`));
     }
+  };
+
+  const handleDeleteStaff = (id: string) => {
+    if (id === 'master-admin') return;
+    deleteDoc(doc(db, 'staff_members', id))
+      .catch((err) => handleFirestoreError(err, OperationType.DELETE, `staff_members/${id}`));
   };
 
   const handleSaveStaff = (memberData: Omit<StaffMember, 'id' | 'joinedDate'> & { id?: string }) => {
@@ -931,6 +905,7 @@ export default function App() {
                       onEditStaff={handleEditStaffClick}
                       onSuspendStaff={handleSuspendStaff}
                       onReactivateStaff={handleReactivateStaff}
+                      onDeleteStaff={handleDeleteStaff}
                     />
                   </div>
                 ) : activeTab === 'picklist' ? (
