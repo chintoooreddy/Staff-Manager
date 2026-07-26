@@ -232,49 +232,59 @@ export default function CallManagement({
 
   // Filter records specifically for export based on user selection
   const getExportRecords = (): CallRecord[] => {
+    let list: CallRecord[] = [];
     if (exportRange === 'All') {
-      return visibleCalls.filter((call) => {
+      list = visibleCalls.filter((call) => {
         const matchesStatus = statusFilter === 'All' || call.callStatus === statusFilter;
         const matchesStaff = staffFilter === 'All' || call.loggedBy === staffFilter;
         return matchesStatus && matchesStaff;
       });
+    } else {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      
+      const endOfToday = new Date();
+      endOfToday.setHours(23, 59, 59, 999);
+
+      list = visibleCalls.filter((call) => {
+        const recordDate = parseRecordDate(call.createdDate);
+        
+        if (exportRange === 'Today') {
+          return recordDate >= startOfToday && recordDate <= endOfToday;
+        }
+        
+        if (exportRange === 'Week') {
+          const startOfSevenDaysAgo = new Date();
+          startOfSevenDaysAgo.setHours(0, 0, 0, 0);
+          startOfSevenDaysAgo.setDate(startOfSevenDaysAgo.getDate() - 7);
+          return recordDate >= startOfSevenDaysAgo && recordDate <= endOfToday;
+        }
+        
+        if (exportRange === 'Month') {
+          const startOfThirtyDaysAgo = new Date();
+          startOfThirtyDaysAgo.setHours(0, 0, 0, 0);
+          startOfThirtyDaysAgo.setDate(startOfThirtyDaysAgo.getDate() - 30);
+          return recordDate >= startOfThirtyDaysAgo && recordDate <= endOfToday;
+        }
+        
+        if (exportRange === 'Custom') {
+          if (!exportStartDate || !exportEndDate) return false;
+          const start = parseInputDate(exportStartDate, false);
+          const end = parseInputDate(exportEndDate, true);
+          return recordDate >= start && recordDate <= end;
+        }
+        
+        return true;
+      });
     }
 
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    
-    const endOfToday = new Date();
-    endOfToday.setHours(23, 59, 59, 999);
-
-    return visibleCalls.filter((call) => {
-      const recordDate = parseRecordDate(call.createdDate);
-      
-      if (exportRange === 'Today') {
-        return recordDate >= startOfToday && recordDate <= endOfToday;
+    return list.sort((a, b) => {
+      const dateA = parseRecordDate(a.createdDate).getTime();
+      const dateB = parseRecordDate(b.createdDate).getTime();
+      if (dateA !== dateB) {
+        return dateB - dateA; // recent date first
       }
-      
-      if (exportRange === 'Week') {
-        const startOfSevenDaysAgo = new Date();
-        startOfSevenDaysAgo.setHours(0, 0, 0, 0);
-        startOfSevenDaysAgo.setDate(startOfSevenDaysAgo.getDate() - 7);
-        return recordDate >= startOfSevenDaysAgo && recordDate <= endOfToday;
-      }
-      
-      if (exportRange === 'Month') {
-        const startOfThirtyDaysAgo = new Date();
-        startOfThirtyDaysAgo.setHours(0, 0, 0, 0);
-        startOfThirtyDaysAgo.setDate(startOfThirtyDaysAgo.getDate() - 30);
-        return recordDate >= startOfThirtyDaysAgo && recordDate <= endOfToday;
-      }
-      
-      if (exportRange === 'Custom') {
-        if (!exportStartDate || !exportEndDate) return false;
-        const start = parseInputDate(exportStartDate, false);
-        const end = parseInputDate(exportEndDate, true);
-        return recordDate >= start && recordDate <= end;
-      }
-      
-      return true;
+      return b.id.localeCompare(a.id);
     });
   };
 
